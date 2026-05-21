@@ -1,8 +1,11 @@
 @echo off
+set "JAVA_HOME=C:\Program Files\Eclipse Adoptium\jdk-17.0.19.10-hotspot"
+set "PATH=%JAVA_HOME%\bin;%PATH%"
+
 echo ==============================================
 echo   INICIANDO MICROSERVICIOS DE LA RED SOCIAL
 echo ==============================================
-echo Asegurate de tener encendidos MySQL, MongoDB y RabbitMQ.
+echo Asegurate de tener encendidos MySQL y MongoDB.
 echo.
 
 echo 1. Iniciando Eureka Server...

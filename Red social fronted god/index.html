@@ -56,6 +56,9 @@
           <div class="sidebar-item" data-target="view-config">
             <i data-lucide="settings"></i><span>Configuración</span>
           </div>
+          <div class="sidebar-item" id="sidebar-theme-toggle" onclick="window.toggleTheme()">
+            <i data-lucide="sun"></i><span>Modo Claro</span>
+          </div>
           <div class="sidebar-item" data-target="view-ayuda">
             <i data-lucide="help-circle"></i><span>Ayuda y Soporte</span>
           </div>
@@ -80,6 +83,9 @@
         </div>
       </div>
       <div class="header-right flex-row gap-3">
+        <div style="position: relative; cursor: pointer;" onclick="window.toggleTheme()" id="theme-toggle-container">
+          <i data-lucide="sun" color="var(--text-secondary)"></i>
+        </div>
         <div style="position: relative; cursor: pointer;"
           onclick="document.getElementById('notifications-panel').classList.toggle('active')">
           <i id="bell-icon" data-lucide="bell" color="var(--text-secondary)"></i>
@@ -170,31 +176,40 @@
 
           <!-- Create Post Section -->
           <div class="create-post-container"
-            style="background: var(--surface-color); padding: 16px; border-radius: 12px; margin-bottom: 24px; box-shadow: var(--shadow-sm);">
-            <div style="display: flex; gap: 12px; margin-bottom: 12px;">
+            style="background: var(--surface-color); padding: 20px; border-radius: 16px; margin-bottom: 24px; box-shadow: var(--shadow-md); border: 1px solid rgba(255,255,255,0.05); position: relative; overflow: hidden;">
+            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: var(--gradient-primary);"></div>
+            <div style="display: flex; gap: 16px; margin-bottom: 16px; align-items: flex-start;">
               <img id="create-post-avatar"
                 src="https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80"
-                class="avatar" style="width: 40px; height: 40px; min-width: 40px;">
+                class="avatar" style="width: 44px; height: 44px; min-width: 44px; border: 2px solid var(--surface-color-light); box-shadow: var(--shadow-sm);">
               <textarea id="create-post-text" class="input-field" placeholder="¿Qué entrenamiento has hecho hoy?"
-                rows="2" style="resize: none;"></textarea>
+                rows="2" style="resize: none; background: rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.05); font-size: 15px; padding: 12px; transition: all 0.3s ease;"></textarea>
             </div>
-            <div style="display: flex; gap: 12px; margin-bottom: 12px;">
-              <input type="text" id="create-post-distance" class="input-field" placeholder="Distancia (ej: 5 km)"
-                style="flex: 1;">
-              <input type="text" id="create-post-time" class="input-field" placeholder="Tiempo (ej: 25:00)"
-                style="flex: 1;">
+            <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+              <div style="flex: 1; position: relative;">
+                 <i data-lucide="map-pin" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--text-secondary);"></i>
+                 <input type="text" id="create-post-distance" class="input-field" placeholder="Distancia (ej: 5 km)" style="padding-left: 36px; background: rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.05);">
+              </div>
+              <div style="flex: 1; position: relative;">
+                 <i data-lucide="clock" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--text-secondary);"></i>
+                 <input type="text" id="create-post-time" class="input-field" placeholder="Tiempo (ej: 25:00)" style="padding-left: 36px; background: rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.05);">
+              </div>
             </div>
-            <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.05);">
               <div class="flex-row gap-3">
                 <label for="create-post-media"
-                  style="cursor: pointer; color: var(--primary-color); display: flex; align-items: center; gap: 4px;">
-                  <i data-lucide="image"></i> <span>Foto/Vídeo</span>
+                  style="cursor: pointer; color: var(--text-primary); display: flex; align-items: center; gap: 8px; background: rgba(14, 165, 233, 0.1); padding: 8px 16px; border-radius: 20px; transition: all 0.2s ease; border: 1px solid rgba(14, 165, 233, 0.2);"
+                  onmouseover="this.style.background='rgba(14, 165, 233, 0.2)'; this.style.transform='translateY(-1px)';"
+                  onmouseout="this.style.background='rgba(14, 165, 233, 0.1)'; this.style.transform='translateY(0)';">
+                  <i data-lucide="image" color="var(--primary-color)" style="width: 18px; height: 18px;"></i> <span style="font-size: 14px; font-weight: 500;">Foto/Vídeo</span>
                 </label>
                 <input type="file" id="create-post-media" accept="image/*,video/*" style="display: none;"
                   onchange="document.getElementById('create-post-media-name').textContent = this.files[0] ? this.files[0].name : ''">
-                <span id="create-post-media-name" class="text-xs text-secondary"></span>
+                <span id="create-post-media-name" class="text-xs text-secondary" style="max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></span>
               </div>
-              <button class="btn" onclick="window.createPost()">Publicar</button>
+              <button class="btn" onclick="window.createPost()" style="display: flex; align-items: center; gap: 8px; padding: 10px 24px; border-radius: 24px; font-weight: bold; letter-spacing: 0.5px; box-shadow: 0 4px 15px rgba(14, 165, 233, 0.4);">
+                Publicar <i data-lucide="send" style="width: 16px; height: 16px;"></i>
+              </button>
             </div>
           </div>
 
@@ -269,9 +284,12 @@
             </div>
           </div>
           <section class="search-section" id="section-zonas">
-            <div class="section-header">
-              <i data-lucide="map-pin" color="var(--primary-color)"></i>
-              <h3>Zonas Populares</h3>
+            <div class="section-header" style="display: flex; justify-content: space-between; align-items: center;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="map-pin" color="var(--primary-color)"></i>
+                <h3 style="margin: 0;">Zonas Populares</h3>
+              </div>
+              <button class="btn btn-primary" onclick="window.openAddZonaModal()" style="padding: 6px 12px; font-size: 14px;">+ Añadir</button>
             </div>
             <div class="zonas-grid" id="zonas-container">
               <!-- Zonas dynamically rendered -->
@@ -279,9 +297,12 @@
           </section>
 
           <section class="search-section" id="section-videos" style="display: block;">
-            <div class="section-header">
-              <i data-lucide="video" color="var(--primary-color)"></i>
-              <h3>Vídeos</h3>
+            <div class="section-header" style="display: flex; justify-content: space-between; align-items: center;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="video" color="var(--primary-color)"></i>
+                <h3 style="margin: 0;">Vídeos</h3>
+              </div>
+              <button class="btn btn-primary" onclick="window.openAddVideoModal()" style="padding: 6px 12px; font-size: 14px;">+ Añadir</button>
             </div>
             <div class="zonas-grid" id="videos-container">
               <!-- Videos dynamically rendered -->
@@ -599,18 +620,24 @@
     <div id="reels-viewer"
       style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #000; z-index: 2000; flex-direction: column;">
       <button onclick="window.closeReels()"
-        style="position: absolute; top: 32px; left: 16px; background: none; border: none; z-index: 2001;">
+        style="position: absolute; top: 32px; left: 16px; background: none; border: none; z-index: 2001; cursor: pointer;">
         <i data-lucide="arrow-left" color="#fff"></i>
       </button>
-      <div
-        style="flex: 1; position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden;">
-        <img id="reels-video" src="" style="width: 100%; height: 100%; object-fit: cover; opacity: 0.8;">
-        <i data-lucide="play" color="#fff" fill="#fff"
-          style="position: absolute; width: 64px; height: 64px; opacity: 0.5;"></i>
+      <div id="reels-media-container"
+        style="flex: 1; position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; background: #000;">
+        <img id="reels-image" src="" style="width: 100%; height: 100%; object-fit: cover; opacity: 0.8; display: none;">
+        <video id="reels-video" src="" style="width: 100%; max-height: 100%; object-fit: contain; display: none;" controls playsinline autoplay></video>
+        <iframe id="reels-youtube" width="100%" height="100%" src="" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen style="display: none;"></iframe>
+        <i id="reels-play-icon" data-lucide="play" color="#fff" fill="#fff"
+          style="position: absolute; width: 64px; height: 64px; opacity: 0.5; display: none;"></i>
         <div style="position: absolute; bottom: 40px; left: 16px; right: 60px;">
+          <div id="reels-user-info" style="display:flex; align-items:center; gap:8px; margin-bottom: 8px; cursor: pointer;">
+             <img id="reels-user-avatar" src="" style="width:24px; height:24px; border-radius:50%; object-fit:cover;">
+             <span id="reels-user-name" style="color:#fff; font-weight:bold; font-size:14px; text-shadow:0 1px 3px rgba(0,0,0,0.8);"></span>
+          </div>
           <h3 id="reels-title" style="color: #fff; margin: 0 0 8px 0; text-shadow: 0 1px 3px rgba(0,0,0,0.8);">Video
             Title</h3>
-          <p style="color: rgba(255,255,255,0.8); margin: 0; font-size: 14px;">Swipe up for next</p>
+          <p style="color: rgba(255,255,255,0.8); margin: 0; font-size: 14px;">FitTribe Vídeos</p>
         </div>
         <div
           style="position: absolute; bottom: 40px; right: 16px; display: flex; flex-direction: column; gap: 24px; align-items: center;">
@@ -664,14 +691,70 @@
       <div class="input-group">
         <label style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; display: block;">Ubicación
           (Toca en el mapa para fijar)</label>
-        <div style="position: relative;">
+        <div style="position: relative; cursor: pointer;" onclick="window.startLocationSelection()">
           <input type="text" id="activity-location" class="input-field" placeholder="Selecciona en el mapa..."
-            style="width: 100%; padding-left: 36px;" readonly>
+            style="width: 100%; padding-left: 36px; cursor: pointer;" readonly>
           <i data-lucide="map-pin"
             style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 16px; color: var(--primary-color);"></i>
         </div>
       </div>
       <button class="btn" style="width: 100%; margin-top: 8px;" onclick="window.submitActivity()">Crear Evento</button>
+    </div>
+
+    <!-- Add Zona Modal -->
+    <div class="modal-overlay" id="add-zona-modal" style="display: none;">
+      <div class="modal-content add-post-content" style="max-height: 90vh; overflow-y: auto;">
+        <div class="modal-header">
+          <h3>Añadir Zona</h3>
+          <button class="close-modal" onclick="document.getElementById('add-zona-modal').style.display='none'">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <div class="add-post-body">
+          <input type="text" id="zona-name-input" placeholder="Nombre de la zona (ej. Parque El Retiro)" style="width: 100%; padding: 12px; margin-bottom: 12px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--surface-color); color: var(--text-primary);">
+          <input type="text" id="zona-address-input" placeholder="Dirección para Google Maps" style="width: 100%; padding: 12px; margin-bottom: 12px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--surface-color); color: var(--text-primary);">
+          
+          <div class="media-preview" id="zona-media-preview" style="display:none; margin-bottom: 12px;"></div>
+          
+          <div class="add-post-actions" style="margin-bottom: 16px;">
+            <button class="action-btn" onclick="document.getElementById('zona-image-upload').click()">
+              <i data-lucide="image" color="#10b981"></i> Foto de la zona
+            </button>
+            <input type="file" id="zona-image-upload" accept="image/*" style="display:none;" onchange="window.handleZonaMediaSelect(event)">
+          </div>
+
+          <button class="btn btn-primary" style="width: 100%;" onclick="window.submitZona()">Añadir Zona</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Video Modal -->
+    <div class="modal-overlay" id="add-video-modal" style="display: none;">
+      <div class="modal-content add-post-content" style="max-height: 90vh; overflow-y: auto;">
+        <div class="modal-header">
+          <h3>Añadir Vídeo</h3>
+          <button class="close-modal" onclick="document.getElementById('add-video-modal').style.display='none'">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <div class="add-post-body">
+          <input type="text" id="video-title-input" placeholder="Título del vídeo" style="width: 100%; padding: 12px; margin-bottom: 12px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--surface-color); color: var(--text-primary);">
+          <input type="text" id="video-youtube-input" placeholder="Enlace de YouTube (opcional)" style="width: 100%; padding: 12px; margin-bottom: 12px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--surface-color); color: var(--text-primary);">
+          
+          <div style="text-align: center; margin-bottom: 12px; color: var(--text-secondary);">O sube un vídeo desde tu dispositivo</div>
+          
+          <div class="media-preview" id="video-media-preview" style="display:none; margin-bottom: 12px;"></div>
+          
+          <div class="add-post-actions" style="margin-bottom: 16px;">
+            <button class="action-btn" onclick="document.getElementById('video-file-upload').click()">
+              <i data-lucide="video" color="#3b82f6"></i> Subir vídeo
+            </button>
+            <input type="file" id="video-file-upload" accept="video/*" style="display:none;" onchange="window.handleVideoMediaSelect(event)">
+          </div>
+
+          <button class="btn btn-primary" style="width: 100%;" onclick="window.submitVideo()">Añadir Vídeo</button>
+        </div>
+      </div>
     </div>
     <nav class="bottom-nav" id="bottom-nav" style="display: none;">
       <div class="nav-item active" data-target="view-home">
@@ -689,6 +772,7 @@
     </nav>
   </div>
 
+  <script src="app.js"></script>
   <script src="script.js"></script>
 </body>
 

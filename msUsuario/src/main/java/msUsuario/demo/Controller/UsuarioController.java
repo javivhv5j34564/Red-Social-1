@@ -39,4 +39,9 @@ public class UsuarioController {
     public ResponseEntity<List<UsuarioResponseDTO>> obtenerTodos() {
         return ResponseEntity.ok(usuarioService.obtenerTodos());
     }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<UsuarioResponseDTO> actualizar(@PathVariable Long id, @RequestBody UsuarioCreateDTO dto) {
+        return ResponseEntity.ok(usuarioService.actualizarUsuario(id, dto));
+    }
 }

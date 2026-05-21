@@ -1,7 +1,67 @@
 document.addEventListener('DOMContentLoaded', () => {
+  // --- Theme Logic ---
+  const savedTheme = localStorage.getItem('fitTribe_theme') || 'dark';
+  if (savedTheme === 'light') {
+    document.documentElement.setAttribute('data-theme', 'light');
+  }
+  
+  window.toggleTheme = function () {
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    const newTheme = isLight ? 'dark' : 'light';
+    
+    let layer = document.getElementById('theme-transition-layer');
+    if (!layer) {
+      layer = document.createElement('div');
+      layer.id = 'theme-transition-layer';
+      layer.className = 'theme-transition-layer';
+      document.body.appendChild(layer);
+    }
+    
+    layer.classList.remove('slide-in');
+    void layer.offsetWidth; // trigger reflow
+    layer.classList.add('slide-in');
+    
+    setTimeout(() => {
+      if (newTheme === 'light') {
+        document.documentElement.setAttribute('data-theme', 'light');
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+      }
+      
+      const sidebarThemeToggle = document.getElementById('sidebar-theme-toggle');
+      if (sidebarThemeToggle) {
+        sidebarThemeToggle.innerHTML = newTheme === 'light' 
+          ? '<i data-lucide="moon"></i><span>Modo Oscuro</span>'
+          : '<i data-lucide="sun"></i><span>Modo Claro</span>';
+      }
+      const themeToggleContainer = document.getElementById('theme-toggle-container');
+      if (themeToggleContainer) {
+        themeToggleContainer.innerHTML = newTheme === 'light' 
+          ? '<i data-lucide="moon" color="var(--text-secondary)"></i>' 
+          : '<i data-lucide="sun" color="var(--text-secondary)"></i>';
+      }
+      lucide.createIcons();
+      localStorage.setItem('fitTribe_theme', newTheme);
+    }, 400);
+  };
+  
+  // Update icons initial state
+  setTimeout(() => {
+    if (savedTheme === 'light') {
+      const sidebarThemeToggle = document.getElementById('sidebar-theme-toggle');
+      if (sidebarThemeToggle) {
+        sidebarThemeToggle.innerHTML = '<i data-lucide="moon"></i><span>Modo Oscuro</span>';
+      }
+      const themeToggleContainer = document.getElementById('theme-toggle-container');
+      if (themeToggleContainer) {
+        themeToggleContainer.innerHTML = '<i data-lucide="moon" color="var(--text-secondary)"></i>';
+      }
+      lucide.createIcons();
+    }
+  }, 0);
+
   // Initialize Lucide icons
   lucide.createIcons();
-
   // --- Elements ---
   const views = document.querySelectorAll('.view');
   const navItems = document.querySelectorAll('.nav-item');
@@ -49,6 +109,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
         window.leafletMap = map;
         window.leafletMarkers = L.layerGroup().addTo(map);
+
+        map.on('click', function(e) {
+          if (window.isSelectingLocation) {
+            window.selectedLatLng = e.latlng;
+            if (window.tempMarker) {
+              map.removeLayer(window.tempMarker);
+            }
+            window.tempMarker = L.marker(e.latlng).addTo(map);
+            document.getElementById('activity-location').value = `${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`;
+            window.isSelectingLocation = false;
+            window.openActivityModal();
+            const toast = document.getElementById('location-toast');
+            if (toast) toast.style.display = 'none';
+          }
+        });
 
         window.renderMeetups();
         mapInitialized = true;
@@ -98,12 +173,72 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // --- Login Logic ---
-  loginForm.addEventListener('submit', (e) => {
+  loginForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const usernameInput = document.getElementById('login-username');
-    if (usernameInput && usernameInput.value.trim() !== '') {
-      CURRENT_USER.name = usernameInput.value.trim();
+    const passwordInput = document.querySelector('.password-group input');
+    const loginBtn = document.querySelector('.login-btn');
+
+    if (!usernameInput || usernameInput.value.trim() === '') return;
+    
+    const nombre = usernameInput.value.trim();
+    const password = passwordInput ? passwordInput.value : '1234';
+
+    // UI Feedback
+    const originalBtnText = loginBtn.textContent;
+    loginBtn.textContent = 'CONECTANDO...';
+    loginBtn.style.opacity = '0.7';
+    loginBtn.disabled = true;
+
+    try {
+        // 1. Obtener usuarios del backend para simular el Login
+        const allUsers = await apiGet(`${API}/usuarios/all`);
+        let userFound = null;
+        
+        if (allUsers) {
+            userFound = allUsers.find(u => u.nombre === nombre);
+        }
+
+        if (userFound) {
+            // Usuario existe: Login exitoso
+            CURRENT_USER.id = userFound.id ? userFound.id.toString() : 'u' + Date.now();
+            CURRENT_USER.name = userFound.nombre;
+            CURRENT_USER.description = userFound.descripcion || '';
+            CURRENT_USER.avatar = userFound.fotoPerfil || 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80';
+            console.log("✅ Usuario encontrado y logueado desde MongoDB (msUsuario)");
+        } else {
+            // Usuario no existe: Registro automático
+            console.log("Usuario no encontrado, creando cuenta nueva en backend...");
+            const newUser = {
+                nombre: nombre,
+                password: password,
+                descripcion: 'Nuevo atleta en FitTribe',
+                telefono: '',
+                fotoPerfil: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80'
+            };
+            const created = await apiPost(`${API}/usuarios`, newUser);
+            if (created) {
+                CURRENT_USER.id = created.id ? created.id.toString() : 'u' + Date.now();
+                CURRENT_USER.name = created.nombre;
+                CURRENT_USER.description = created.descripcion || '';
+                console.log("✅ Usuario registrado con éxito en MongoDB (msUsuario)");
+            } else {
+                CURRENT_USER.name = nombre; // Fallback si algo falló silenciosamente
+                CURRENT_USER.id = 'u' + Date.now();
+            }
+        }
+    } catch(err) {
+        // Fallback local para que la UI no se rompa si el backend está apagado
+        console.warn("⚠️ Backend no disponible. Haciendo login de prueba en local.", err);
+        CURRENT_USER.id = 'local_' + nombre.toLowerCase().replace(/\s+/g, '');
+        CURRENT_USER.name = nombre;
     }
+    
+    saveData('fitTribe_user', CURRENT_USER);
+
+    loginBtn.textContent = originalBtnText;
+    loginBtn.style.opacity = '1';
+    loginBtn.disabled = false;
 
     // Preparar y mostrar pantalla de configuración inicial
     window.isInitialSetup = true;
@@ -115,6 +250,17 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   logoutBtn.addEventListener('click', () => {
+    CURRENT_USER = {
+        id: 'current',
+        name: '',
+        avatar: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80',
+        description: '',
+        logros: [],
+        joinedActivities: [],
+        savedPosts: []
+    };
+    localStorage.removeItem('fitTribe_user');
+    document.getElementById('login-username').value = '';
     showView('view-login');
   });
 
@@ -208,7 +354,19 @@ document.addEventListener('DOMContentLoaded', () => {
         finishConfigUpdate();
       }
 
-      function finishConfigUpdate() {
+      async function finishConfigUpdate() {
+        try {
+          const updateData = {
+              nombre: CURRENT_USER.name,
+              descripcion: CURRENT_USER.description,
+              fotoPerfil: CURRENT_USER.avatar
+          };
+          await apiPut(`${API}/usuarios/${CURRENT_USER.id}`, updateData);
+          console.log("Perfil actualizado en backend");
+        } catch (e) {
+          console.warn("Fallback local para actualizar perfil", e);
+        }
+
         // Update sidebar UI
         const sidebarName = document.querySelector('.sidebar-user-info h3');
         const sidebarImg = document.querySelector('.sidebar-user img');
@@ -251,6 +409,10 @@ document.addEventListener('DOMContentLoaded', () => {
             window.renderFeed();
           }
         }
+        
+        if (typeof window.renderPersonas === 'function') {
+          window.renderPersonas();
+        }
 
         alert('Configuración guardada correctamente.');
 
@@ -268,11 +430,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
   window.openProfile = function (userId) {
     let userToView = null;
-    if (userId === CURRENT_USER.id) {
+    if (userId === 'current' || userId === CURRENT_USER.id) {
       userToView = CURRENT_USER;
     } else {
-      const post = MOCK_POSTS.find(p => p.user.id === userId);
-      if (post) userToView = post.user;
+      const allPosts = window.currentRenderedPosts || MOCK_POSTS;
+      const post = allPosts.find(p => p.user.id.toString() === userId.toString());
+      if (post) {
+        userToView = post.user;
+      } else {
+        const ALL_STORIES = loadData('fitTribe_all_stories', []);
+        const story = ALL_STORIES.find(s => s.userId.toString() === userId.toString());
+        if (story) {
+          userToView = { id: story.userId, name: story.name, avatar: story.avatar, description: 'Atleta en FitTribe' };
+        } else {
+          // As a last resort, create a dummy profile object so the view doesn't break
+          userToView = { id: userId, name: 'Atleta', avatar: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80', description: 'Atleta en FitTribe' };
+        }
+      }
     }
 
     if (userToView) {
@@ -309,7 +483,8 @@ document.addEventListener('DOMContentLoaded', () => {
         userToView.following = window.followedUsers.length;
       }
 
-      const userPostsCount = MOCK_POSTS.filter(p => p.user.id === userToView.id).length;
+      const allPostsForCount = window.currentRenderedPosts || MOCK_POSTS;
+      const userPostsCount = allPostsForCount.filter(p => p.user.id.toString() === userToView.id.toString()).length;
       document.getElementById('perfil-stat-actividades').textContent = userPostsCount;
       document.getElementById('perfil-stat-seguidores').textContent = userToView.followers;
       document.getElementById('perfil-stat-seguidos').textContent = userToView.following;
@@ -333,7 +508,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
-  document.getElementById('perfil-follow-btn').addEventListener('click', function () {
+  document.getElementById('perfil-follow-btn').addEventListener('click', async function () {
     const userId = this.getAttribute('data-userid');
     if (!userId) return;
 
@@ -354,6 +529,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (targetUser.followers === undefined) targetUser.followers = Math.floor(Math.random() * 500) + 50;
         targetUser.followers++;
         document.getElementById('perfil-stat-seguidores').textContent = targetUser.followers;
+      }
+      
+      try {
+        await apiPost(`${API}/usuarios/${CURRENT_USER.id}/seguir/${userId}`, {});
+        console.log("Usuario seguido en backend");
+      } catch (e) {
+        console.warn("Fallback local para seguir usuario", e);
       }
     }
     saveData('fitTribe_follows', window.followedUsers);
@@ -425,7 +607,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
-  window.joinActivity = function (btn, meetupId) {
+  window.joinActivity = async function (btn, meetupId) {
     if (btn.textContent === 'Joined') return;
     btn.textContent = 'Joined';
     btn.classList.add('joined-btn');
@@ -437,11 +619,23 @@ document.addEventListener('DOMContentLoaded', () => {
         CURRENT_USER.joinedActivities.push(meetup);
         saveData('fitTribe_user', CURRENT_USER);
         window.renderJoinedActivities(CURRENT_USER);
+        
+        try {
+          const actividadDTO = {
+            idUsuario: CURRENT_USER.id.toString(),
+            tipo: "UNIR_MEETUP",
+            referenciaId: meetupId.toString()
+          };
+          await apiPost(`${API}/api/actividades`, actividadDTO);
+          console.log("Unión a actividad registrada en backend");
+        } catch (e) {
+          console.warn("Fallback local para unirse a actividad", e);
+        }
       }
     }
   };
 
-  window.toggleLike = function (btn) {
+  window.toggleLike = async function (btn) {
     btn.classList.toggle('active-action');
     const icon = btn.querySelector('i');
 
@@ -456,10 +650,22 @@ document.addEventListener('DOMContentLoaded', () => {
       icon.setAttribute('fill', 'var(--primary-color)');
       icon.setAttribute('color', 'var(--primary-color)');
       currentLikes += 1;
+      
+      try {
+        const reaccionDTO = {
+            idUsuario: CURRENT_USER.id.toString(),
+            idPublicacion: postId.toString(),
+            tipo: "LIKE"
+        };
+        await apiPost(`${API}/api/reacciones`, reaccionDTO);
+      } catch (e) {
+        console.warn("Fallback local reaction", e);
+      }
     } else {
       icon.setAttribute('fill', 'none');
       icon.setAttribute('color', 'currentColor');
       currentLikes -= 1;
+      // In a full implementation we would call apiDelete for the specific reaction id here
     }
     likesCountSpan.textContent = currentLikes;
   };
@@ -509,7 +715,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 300);
   };
 
-  window.sheetAddComment = function (postId) {
+  window.sheetAddComment = async function (postId) {
     const input = document.getElementById('sheet-comment-input');
     const text = input.value.trim();
     if (text) {
@@ -524,6 +730,18 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       `;
       input.value = '';
+
+      try {
+        const commentData = {
+          idUsuario: CURRENT_USER.id.toString(),
+          idPublicacion: postId.toString(),
+          contenido: text
+        };
+        await apiPost(`${API}/api/comentarios`, commentData);
+        console.log("Comentario guardado en el backend");
+      } catch (e) {
+        console.warn("Fallback: Guardando comentario en local", e);
+      }
 
       const post = MOCK_POSTS.find(p => p.id === postId);
       if (post) {
@@ -546,42 +764,82 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // 1. Home Feed
-  let MOCK_POSTS = loadData('fitTribe_posts', [
+  let defaultPosts = [
     {
       id: 1, user: { id: 'u1', name: 'John', avatar: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80', description: 'Corredor aficionado, explorando rutas nuevas todos los fines de semana.', logros: [{ title: 'Maratón Madrid', icon: 'award' }] }, action: 'ran 10km at 5:15 pace.', stats: { distance: '10 km', time: '52:30' }, media: 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80', likes: 110, comments: 1, tags: ['Martorell'], likedByMe: false, commentsArray: [
         { author: 'Carlos', text: '¡Buen trabajo, a seguir así! 💪', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80' }
       ]
     },
-    { id: 2, user: { id: 'u2', name: 'Ana', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80', description: 'Entusiasta del ciclismo, subiendo puertos por diversión.', logros: [{ title: '100km Bici', icon: 'zap' }] }, action: 'completed a cycling route.', stats: { distance: '45 km', time: '2:15:00' }, media: 'https://images.unsplash.com/photo-1541625602330-2277a4c46182?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80', isVideo: true, likes: 342, comments: 0, tags: ['Bici'], likedByMe: true, commentsArray: [] }
-  ]);
+    { id: 2, user: { id: 'u2', name: 'Ana', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80', description: 'Entusiasta del ciclismo, subiendo puertos por diversión.', logros: [{ title: '100km Bici', icon: 'zap' }] }, action: 'completed a cycling route.', stats: { distance: '45 km', time: '2:15:00' }, media: 'https://images.unsplash.com/photo-1541625602330-2277a4c46182?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80', isVideo: true, likes: 342, comments: 0, tags: ['Bici'], likedByMe: true, commentsArray: [] },
+    { id: 998, user: { id: 'u_muelas', name: 'Muelas', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Muelas', description: 'Entrenando duro todos los días.' }, action: 'ha subido una nueva rutina de entrenamiento.', stats: { distance: 'Gimnasio', time: '1:30:00' }, media: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80', isVideo: false, likes: 245, comments: 12, tags: ['Fuerza', 'Rutina'], likedByMe: false, commentsArray: [] },
+    { id: 999, user: { id: 'u_marcos', name: 'Marcos Broncano', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=MarcosB', description: 'Amante de la montaña y el trail running.' }, action: 'corriendo por la sierra de Madrid.', stats: { distance: '15 km', time: '1:45:00' }, media: 'https://images.unsplash.com/photo-1526506114805-4e2058c45b91?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80', isVideo: false, likes: 532, comments: 34, tags: ['Trail', 'Montaña'], likedByMe: false, commentsArray: [] }
+  ];
 
-  let STORIES = loadData('fitTribe_stories', [
-    { id: 'me', name: 'Tu historia', avatar: CURRENT_USER.avatar, isMe: true },
-    { id: 'u1', name: 'John', avatar: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80', hasUnseen: true },
-    { id: 'u2', name: 'Ana', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80', hasUnseen: true },
-    { id: 'u3', name: 'Carlos', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80', hasUnseen: false }
-  ]);
+  let MOCK_POSTS = loadData('fitTribe_posts', defaultPosts);
 
-  window.renderStories = function () {
+  let shouldSaveMock = false;
+  defaultPosts.forEach(dp => {
+      if (!MOCK_POSTS.find(p => p.id === dp.id)) {
+          MOCK_POSTS.push(dp);
+          shouldSaveMock = true;
+      }
+  });
+  if (shouldSaveMock) {
+      saveData('fitTribe_posts', MOCK_POSTS);
+  }
+
+  let ALL_STORIES = loadData('fitTribe_all_stories', []);
+
+  window.renderStories = async function () {
     const container = document.getElementById('stories-container');
     if (!container) return;
 
-    // Check if CURRENT_USER avatar changed
-    const myStory = STORIES.find(s => s.id === 'me');
-    if (myStory && myStory.avatar !== CURRENT_USER.avatar) {
-      myStory.avatar = CURRENT_USER.avatar;
-      saveData('fitTribe_stories', STORIES);
-    }
+    let allUsersBackend = [];
+    try {
+        allUsersBackend = await apiGet(`${API}/usuarios/all`) || [];
+    } catch(e) {}
 
-    container.innerHTML = STORIES.map((story, index) => `
-      <div class="story-item" style="display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; min-width: 72px;" onclick="${story.isMe && !story.hasUnseen ? "window.handleAddStory()" : `window.openStory(${index})`}">
-        <div style="position: relative; width: 64px; height: 64px; border-radius: 50%; padding: 2px; background: ${story.hasUnseen ? 'linear-gradient(45deg, var(--primary-color) 0%, var(--primary-hover) 100%)' : '#ddd'};">
+    ALL_STORIES = loadData('fitTribe_all_stories', []);
+    
+    let myStoryData = ALL_STORIES.find(s => s.userId === CURRENT_USER.id);
+    
+    const myStoryRender = {
+      id: CURRENT_USER.id,
+      name: 'Tu historia',
+      avatar: CURRENT_USER.avatar,
+      isMe: true,
+      hasUnseen: myStoryData ? myStoryData.hasUnseen : false,
+      media: myStoryData ? myStoryData.media : null,
+      isVideo: myStoryData ? myStoryData.isVideo : false
+    };
+
+    const otherStoriesRender = ALL_STORIES.filter(s => s.userId !== CURRENT_USER.id).map(s => {
+      let finalAvatar = s.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${s.name}`;
+      let finalName = s.name;
+      
+      return {
+          id: s.userId,
+          name: finalName,
+          avatar: finalAvatar,
+          isMe: false,
+          hasUnseen: s.hasUnseen,
+          media: s.media,
+          isVideo: s.isVideo
+      };
+    });
+
+    window.currentRenderedStories = [myStoryRender, ...otherStoriesRender];
+
+    container.innerHTML = window.currentRenderedStories.map((story, index) => `
+      <div class="story-item" style="display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; min-width: 72px;" onclick="${story.isMe && !story.media ? "window.handleAddStory()" : `window.openStory(${index})`}">
+        <div style="position: relative; width: 68px; height: 68px; border-radius: 50%; padding: 3px; background: ${story.hasUnseen ? 'linear-gradient(45deg, #f9ce34, #ee2a7b, #6228d7)' : 'transparent'}; box-shadow: ${story.hasUnseen ? 'none' : '0 0 0 1px var(--surface-border)'};">
           <img src="${story.avatar}" style="width: 100%; height: 100%; border-radius: 50%; border: 2px solid var(--surface-color); object-fit: cover;">
-          ${story.isMe && !story.hasUnseen ? '<div style="position: absolute; bottom: 0; right: 0; background: var(--primary-color); border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border: 2px solid var(--surface-color);"><i data-lucide="plus" color="#fff" style="width: 12px; height: 12px;"></i></div>' : ''}
+          ${story.isMe && !story.media ? '<div style="position: absolute; bottom: 0; right: 0; background: var(--primary-color); border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; border: 3px solid var(--surface-color); box-shadow: 0 2px 5px rgba(0,0,0,0.3); transition: transform 0.2s;" onmouseover="this.style.transform=\'scale(1.15)\'" onmouseout="this.style.transform=\'scale(1)\'"><i data-lucide="plus" color="#fff" style="width: 14px; height: 14px;"></i></div>' : ''}
         </div>
-        <span style="font-size: 11px; color: var(--text-primary); text-overflow: ellipsis; white-space: nowrap; overflow: hidden; width: 64px; text-align: center;">${story.name}</span>
+        <span style="font-size: 11px; color: var(--text-primary); text-overflow: ellipsis; white-space: nowrap; overflow: hidden; width: 68px; text-align: center; margin-top: 4px; font-weight: ${story.hasUnseen ? 'bold' : 'normal'};">${story.name}</span>
       </div>
     `).join('');
+    lucide.createIcons();
   };
 
   window.handleAddStory = function () {
@@ -594,13 +852,26 @@ document.addEventListener('DOMContentLoaded', () => {
       const reader = new FileReader();
       const isVideo = file.type.startsWith('video/');
       reader.onload = function (e) {
-        const myStory = STORIES.find(s => s.id === 'me');
-        if (myStory) {
-          myStory.hasUnseen = true;
-          myStory.media = e.target.result;
-          myStory.isVideo = isVideo;
-          saveData('fitTribe_stories', STORIES);
+        ALL_STORIES = loadData('fitTribe_all_stories', []);
+        let myStoryIndex = ALL_STORIES.findIndex(s => s.userId === CURRENT_USER.id);
+        
+        const newStoryData = {
+          userId: CURRENT_USER.id,
+          name: CURRENT_USER.name,
+          avatar: CURRENT_USER.avatar,
+          media: e.target.result,
+          isVideo: isVideo,
+          hasUnseen: true,
+          timestamp: Date.now()
+        };
+
+        if (myStoryIndex >= 0) {
+          ALL_STORIES[myStoryIndex] = newStoryData;
+        } else {
+          ALL_STORIES.push(newStoryData);
         }
+        saveData('fitTribe_all_stories', ALL_STORIES);
+
         window.renderStories();
         if (window.addNotification) window.addNotification('Has subido una nueva historia.', CURRENT_USER.avatar);
         alert('¡Historia subida con éxito!');
@@ -639,12 +910,143 @@ document.addEventListener('DOMContentLoaded', () => {
     window.renderFeed();
   };
 
-  window.renderFeed = function () {
+  window.renderFeed = async function () {
     const feedContainer = document.getElementById('feed-container');
     if (!feedContainer) return;
+    feedContainer.innerHTML = '<p class="text-secondary" style="text-align: center; padding: 20px;">Conectando con el backend...</p>';
+
+    let postsToRender = MOCK_POSTS;
+
+    try {
+        const backendData = await apiGet(`${API}/api/publicaciones`);
+        if (backendData && backendData.length > 0) {
+            let allUsersBackend = [];
+            try {
+               allUsersBackend = await apiGet(`${API}/usuarios/all`) || [];
+            } catch(e) {}
+            
+            let ALL_STORIES = loadData('fitTribe_all_stories', []);
+
+            // Transformar el modelo del backend al diseño visual del frontend
+            postsToRender = await Promise.all(backendData.map(async bp => {
+                let mediaUrl = (bp.multimedia && bp.multimedia.length > 0) ? bp.multimedia[0] : '';
+                
+                const postId = bp.id || bp.idPublicaciones;
+                const userId = bp.idUsuario || CURRENT_USER.id;
+                let finalName = 'Usuario ' + (bp.idUsuario || 'Fit');
+                let finalAvatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`;
+                
+                if (userId.toString() === CURRENT_USER.id.toString()) {
+                    finalName = CURRENT_USER.name;
+                    finalAvatar = CURRENT_USER.avatar;
+                } else {
+                    const foundUser = allUsersBackend.find(u => u.id && u.id.toString() === userId.toString());
+                    if (foundUser) {
+                        finalName = foundUser.nombre;
+                        if (foundUser.fotoPerfil && foundUser.fotoPerfil !== 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80') {
+                            finalAvatar = foundUser.fotoPerfil;
+                        } else {
+                            finalAvatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${foundUser.nombre}`;
+                        }
+                    } else {
+                        // Fallback to local mocks if user not found in backend
+                        const storyData = ALL_STORIES.find(s => s.userId === userId);
+                        if (storyData) {
+                            finalName = storyData.name || finalName;
+                            finalAvatar = storyData.avatar || finalAvatar;
+                        } else {
+                            const mockP = MOCK_POSTS.find(p => p.user.id === userId);
+                            if (mockP) {
+                                finalName = mockP.user.name || finalName;
+                                finalAvatar = mockP.user.avatar || finalAvatar;
+                            }
+                        }
+                    }
+                }
+
+                // Fetch comments
+                let commentsArray = [];
+                try {
+                    const beComments = await apiGet(`${API}/api/comentarios/publicacion/${postId}`);
+                    if (beComments) {
+                        commentsArray = beComments.map(c => {
+                            let cName = 'Usuario ' + c.idUsuario;
+                            let cAvatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${c.idUsuario}`;
+                            if (c.idUsuario === CURRENT_USER.id.toString()) {
+                                cName = CURRENT_USER.name;
+                                cAvatar = CURRENT_USER.avatar;
+                            } else {
+                                const cUser = allUsersBackend.find(u => u.id && u.id.toString() === c.idUsuario);
+                                if (cUser) {
+                                    cName = cUser.nombre;
+                                    if (cUser.fotoPerfil && cUser.fotoPerfil !== 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80') {
+                                        cAvatar = cUser.fotoPerfil;
+                                    } else {
+                                        cAvatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${cUser.nombre}`;
+                                    }
+                                }
+                            }
+                            return {
+                                author: cName,
+                                text: c.contenido,
+                                avatar: cAvatar,
+                                userId: c.idUsuario
+                            };
+                        });
+                    }
+                } catch(e) {}
+
+                // Fetch reactions
+                let likesCount = 0;
+                let likedByMe = false;
+                try {
+                    const beReacciones = await apiGet(`${API}/api/reacciones/publicacion/${postId}`);
+                    if (beReacciones) {
+                        const likes = beReacciones.filter(r => r.tipo === 'LIKE');
+                        likesCount = likes.length;
+                        likedByMe = likes.some(r => r.idUsuario === CURRENT_USER.id.toString());
+                    }
+                } catch(e) {}
+
+                // Combine with local mock posts if exists for fallback
+                const localPost = MOCK_POSTS.find(p => p.id.toString() === postId.toString());
+                if (localPost) {
+                     if (commentsArray.length === 0 && localPost.commentsArray) commentsArray = localPost.commentsArray;
+                     if (likesCount === 0 && localPost.likes > 0) likesCount = localPost.likes;
+                     if (!likedByMe && localPost.likedByMe) likedByMe = true;
+                }
+
+                return {
+                    id: postId,
+                    user: { 
+                        id: userId, 
+                        name: finalName, 
+                        avatar: finalAvatar,
+                        description: 'Entusiasta del deporte'
+                    },
+                    action: bp.texto || bp.contenido,
+                    stats: { distance: 'Backend', time: 'Justo ahora' },
+                    media: mediaUrl,
+                    isVideo: mediaUrl.includes('video'),
+                    likes: likesCount,
+                    comments: commentsArray.length,
+                    tags: [],
+                    likedByMe: likedByMe,
+                    commentsArray: commentsArray
+                };
+            }));
+            
+            postsToRender.reverse(); // Mostrar los más nuevos arriba
+        }
+    } catch(e) {
+        console.warn("El backend no está disponible o no tiene publicaciones. Usando diseño de prueba local.", e);
+    }
+
+    window.currentRenderedPosts = postsToRender;
+
     feedContainer.innerHTML = '';
 
-    const filteredPosts = MOCK_POSTS.filter(post => {
+    const filteredPosts = postsToRender.filter(post => {
       if (window.currentFeedFilter === 'Todo') return true;
       const t = window.currentFeedFilter.toLowerCase();
       const inAction = (post.action || '').toLowerCase().includes(t);
@@ -746,26 +1148,38 @@ document.addEventListener('DOMContentLoaded', () => {
     let mediaUrl = '';
     let isVideo = false;
 
-    function finalizePost() {
-      const newPost = {
-        id: Date.now(),
-        user: CURRENT_USER,
-        action: text,
-        stats: {
-          distance: distanceInput.value.trim() || '0 km',
-          time: timeInput.value.trim() || '0:00'
-        },
-        media: mediaUrl,
-        isVideo: isVideo,
-        likes: 0,
-        comments: 0,
-        tags: [],
-        likedByMe: false,
-        commentsArray: []
-      };
-
-      MOCK_POSTS.unshift(newPost);
-      saveData('fitTribe_posts', MOCK_POSTS);
+    async function finalizePost() {
+      try {
+        // Enviar publicación al backend real a través de la API Gateway
+        const publicacionDTO = {
+            idUsuario: CURRENT_USER.id.toString(),
+            texto: text,
+            multimedia: mediaUrl ? [mediaUrl] : []
+        };
+        await apiPost(`${API}/api/publicaciones`, publicacionDTO);
+        console.log("Guardado en la base de datos MongoDB del microservicio de Contenido");
+      } catch(e) {
+        // Si el backend falla, guardamos en local para que el frontend siga luciendo genial
+        console.warn("Fallback: Guardando publicación en el mock local", e);
+        const newPost = {
+          id: Date.now(),
+          user: CURRENT_USER,
+          action: text,
+          stats: {
+            distance: distanceInput.value.trim() || '0 km',
+            time: timeInput.value.trim() || '0:00'
+          },
+          media: mediaUrl,
+          isVideo: isVideo,
+          likes: 0,
+          comments: 0,
+          tags: [],
+          likedByMe: false,
+          commentsArray: []
+        };
+        MOCK_POSTS.unshift(newPost);
+        saveData('fitTribe_posts', MOCK_POSTS);
+      }
 
       textInput.value = '';
       distanceInput.value = '';
@@ -773,7 +1187,7 @@ document.addEventListener('DOMContentLoaded', () => {
       mediaInput.value = '';
       document.getElementById('create-post-media-name').textContent = '';
 
-      window.renderFeed();
+      await window.renderFeed();
       if (window.addNotification) window.addNotification('Has publicado un nuevo post.', CURRENT_USER.avatar);
       alert("¡Publicación creada exitosamente!");
     }
@@ -791,11 +1205,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
-  window.deletePost = function (postId) {
+  window.deletePost = async function (postId) {
     if (confirm("¿Seguro que quieres eliminar esta publicación?")) {
+      try {
+        await apiDelete(`${API}/api/publicaciones/${postId}`);
+        console.log("Eliminado en backend.");
+      } catch (e) {
+        console.warn("Fallback: Eliminando en local", e);
+      }
+      
       MOCK_POSTS = MOCK_POSTS.filter(p => p.id !== postId);
       saveData('fitTribe_posts', MOCK_POSTS);
-      window.renderFeed();
+      await window.renderFeed();
       // If currently on profile, re-render profile grid
       if (document.getElementById('view-perfil').classList.contains('active')) {
         window.openProfile('current');
@@ -881,56 +1302,151 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
-  // 3. Busqueda - Zonas Populares
-  const ZONAS = [
-    { id: 1, name: 'El Retiro - Running', image: 'https://images.unsplash.com/photo-1524661135-423995f22d0b?ixlib=rb-1.2.1&auto=format&fit=crop&w=300&q=80' },
-    { id: 2, name: 'Local Gym - Yoga', image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?ixlib=rb-1.2.1&auto=format&fit=crop&w=300&q=80' }
-  ];
+  // 3. Busqueda - Zonas Populares y Vídeos
+  let ZONAS = loadData('fitTribe_zonas', [
+    { id: 1, name: 'El Retiro - Running', address: 'Parque de El Retiro, Madrid', image: 'https://images.unsplash.com/photo-1524661135-423995f22d0b?ixlib=rb-1.2.1&auto=format&fit=crop&w=300&q=80', user: { id: 'u1', name: 'FitTribe', avatar: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80' } },
+    { id: 2, name: 'Local Gym - Yoga', address: 'Gimnasio', image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?ixlib=rb-1.2.1&auto=format&fit=crop&w=300&q=80', user: { id: 'u1', name: 'FitTribe', avatar: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80' } }
+  ]);
 
-  const zonasContainer = document.getElementById('zonas-container');
-  ZONAS.forEach(zona => {
-    zonasContainer.innerHTML += `
-      <div class="zona-card" onclick="alert('Explorando ${zona.name}')">
-        <img src="${zona.image}" alt="${zona.name}">
-        <div class="zona-label">${zona.name}</div>
-      </div>
-    `;
-  });
+  window.renderZonas = function() {
+    const zonasContainer = document.getElementById('zonas-container');
+    if (!zonasContainer) return;
+    zonasContainer.innerHTML = '';
+    ZONAS.forEach(zona => {
+      zonasContainer.innerHTML += `
+        <div class="zona-card" style="position:relative;">
+          <img src="${zona.image}" alt="${zona.name}" onclick="window.openGoogleMaps('${zona.address}')" style="cursor:pointer;">
+          <div class="zona-label" onclick="window.openGoogleMaps('${zona.address}')" style="cursor:pointer;">${zona.name}</div>
+          <div style="position:absolute; top:8px; left:8px; display:flex; align-items:center; gap:6px; background:rgba(0,0,0,0.6); padding:4px 8px; border-radius:20px; cursor:pointer;" onclick="window.openProfile('${zona.user.id}')">
+             <img src="${zona.user.avatar}" style="width:24px; height:24px; border-radius:50%; object-fit:cover;">
+             <span style="color:#fff; font-size:12px;">${zona.user.name}</span>
+          </div>
+        </div>
+      `;
+    });
+  };
 
-  const VIDEOS = [
-    { id: 1, title: 'Rutina de 15 min', image: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?ixlib=rb-1.2.1&auto=format&fit=crop&w=300&q=80' },
-    { id: 2, title: 'Técnica de carrera', image: 'https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?ixlib=rb-1.2.1&auto=format&fit=crop&w=300&q=80' }
-  ];
+  window.openGoogleMaps = function(address) {
+    if (!address) return;
+    const url = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(address);
+    window.open(url, '_blank');
+  };
 
-  const videosContainer = document.getElementById('videos-container');
-  if (videosContainer) {
-    VIDEOS.forEach(video => {
+  let VIDEOS = loadData('fitTribe_videos_v2', [
+    { id: 1, title: 'Ejercicios de Gimnasio - Rutina Completa', isYoutube: true, youtubeUrl: 'https://www.youtube.com/watch?v=UItWltVZZmE', image: '', user: { id: 'app', name: 'Aplicación FitTribe', avatar: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80' } },
+    { id: 2, title: 'Deportes en General - Mejores Momentos', isYoutube: true, youtubeUrl: 'https://www.youtube.com/watch?v=cbKkAALRXhw', image: '', user: { id: 'app', name: 'Aplicación FitTribe', avatar: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80' } }
+  ]);
+
+  function extractVideoID(url) {
+      if(!url) return '';
+      let regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+      let match = url.match(regExp);
+      return (match && match[2].length === 11) ? match[2] : null;
+  }
+
+  window.renderVideos = function() {
+    const videosContainer = document.getElementById('videos-container');
+    if (!videosContainer) return;
+    videosContainer.innerHTML = '';
+    VIDEOS.forEach((video, index) => {
+      let thumbnail = video.image;
+      if (video.isYoutube && video.youtubeUrl) {
+          const ytId = extractVideoID(video.youtubeUrl);
+          if (ytId) thumbnail = 'https://img.youtube.com/vi/' + ytId + '/hqdefault.jpg';
+      }
+      
       videosContainer.innerHTML += `
-        <div class="zona-card video-card" onclick="window.openReels('${video.image}', '${video.title}')" style="position:relative; cursor:pointer;">
-          <img src="${video.image}" alt="${video.title}">
+        <div class="zona-card video-card" onclick="window.openReels(${index})" style="position:relative; cursor:pointer;">
+          <img src="${thumbnail}" alt="${video.title}">
           <div class="zona-label">${video.title}</div>
           <div class="video-play-overlay" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);"><i data-lucide="play" fill="#fff" color="#fff" style="width:40px;height:40px;"></i></div>
+          <div style="position:absolute; top:8px; left:8px; display:flex; align-items:center; gap:6px; background:rgba(0,0,0,0.6); padding:4px 8px; border-radius:20px; cursor:pointer;" onclick="event.stopPropagation(); window.openProfile('${video.user.id}')">
+             <img src="${video.user.avatar}" style="width:24px; height:24px; border-radius:50%; object-fit:cover;">
+             <span style="color:#fff; font-size:12px;">${video.user.name}</span>
+          </div>
         </div>
       `;
     });
-  }
+    lucide.createIcons();
+  };
+  
+  // Initialize calls
+  window.renderZonas();
+  window.renderVideos();
 
-  const PERSONAS = [
-    { id: 'u1', name: 'John Doe', image: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-1.2.1&auto=format&fit=crop&w=300&q=80' },
-    { id: 'u2', name: 'Ana Smith', image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?ixlib=rb-1.2.1&auto=format&fit=crop&w=300&q=80' }
-  ];
+  window.renderPersonas = async function() {
+    const personasContainer = document.getElementById('personas-container');
+    if (!personasContainer) return;
+    
+    let allUsers = [];
+    try {
+        allUsers = await apiGet(`${API}/usuarios/all`) || [];
+    } catch(e) {}
+    
+    let ALL_STORIES = loadData('fitTribe_all_stories', []);
+    
+    // Siempre fusionar los usuarios del backend con los locales (MOCK_POSTS y ALL_STORIES)
+    // para asegurar que Muelas, Marcos Broncano y otros usuarios por defecto siempre aparezcan.
+    const localUsersMap = new Map();
+    allUsers.forEach(u => {
+        if (u && u.id) localUsersMap.set(u.id.toString(), u);
+    });
+    
+    ALL_STORIES.forEach(s => {
+        if (s && s.userId && !localUsersMap.has(s.userId.toString())) {
+            localUsersMap.set(s.userId.toString(), { id: s.userId, nombre: s.name, avatar: s.avatar });
+        }
+    });
+    
+    MOCK_POSTS.forEach(p => {
+        if (p.user && p.user.id && !localUsersMap.has(p.user.id.toString())) {
+            localUsersMap.set(p.user.id.toString(), { id: p.user.id, nombre: p.user.name, avatar: p.user.avatar });
+        }
+    });
+    
+    if (CURRENT_USER && CURRENT_USER.id && !localUsersMap.has(CURRENT_USER.id.toString())) {
+        localUsersMap.set(CURRENT_USER.id.toString(), { id: CURRENT_USER.id, nombre: CURRENT_USER.name, avatar: CURRENT_USER.avatar });
+    }
+    
+    allUsers = Array.from(localUsersMap.values());
+    
+    // Si sigue vacío, poner unos por defecto para que la vista no esté vacía
+    if (allUsers.length === 0) {
+        allUsers = [
+            { id: 'u1', nombre: 'John Doe', avatar: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-1.2.1&auto=format&fit=crop&w=300&q=80' },
+            { id: 'u2', nombre: 'Ana Smith', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?ixlib=rb-1.2.1&auto=format&fit=crop&w=300&q=80' }
+        ];
+    }
 
-  const personasContainer = document.getElementById('personas-container');
-  if (personasContainer) {
-    PERSONAS.forEach(persona => {
-      personasContainer.innerHTML += `
+    personasContainer.innerHTML = allUsers.filter(u => u.id.toString() !== CURRENT_USER.id.toString()).map(persona => {
+      // Intentar obtener el avatar, si no, uno por defecto basado en su nombre
+      let avatarUrl = persona.fotoPerfil || persona.avatar;
+      
+      if (!avatarUrl) {
+         let storyFound = ALL_STORIES.find(s => s.userId.toString() === persona.id.toString());
+         if(storyFound) avatarUrl = storyFound.avatar;
+      }
+      if (!avatarUrl) {
+         let postFound = MOCK_POSTS.find(p => p.user.id.toString() === persona.id.toString());
+         if(postFound) avatarUrl = postFound.user.avatar;
+      }
+      
+      if (!avatarUrl || avatarUrl === 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80') {
+         // Fallback a una imagen genérica pero distintiva por usuario
+         avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${persona.nombre || persona.id}`;
+      }
+      
+      return `
         <div class="zona-card persona-card" onclick="window.openProfile('${persona.id}')" style="cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; background-color:var(--surface-color-light); padding:20px;">
-          <img src="${persona.image}" alt="${persona.name}" style="width:80px; height:80px; border-radius:50%; object-fit:cover; margin-bottom:10px; transition: transform 0.3s ease;">
-          <div style="font-weight:bold; color:var(--text-primary);">${persona.name}</div>
+          <img src="${avatarUrl}" alt="${persona.nombre}" style="width:80px; height:80px; border-radius:50%; object-fit:cover; margin-bottom:10px; transition: transform 0.3s ease;">
+          <div style="font-weight:bold; color:var(--text-primary); text-align:center;">${persona.nombre}</div>
         </div>
       `;
-    });
-  }
+    }).join('');
+  };
+  
+  // Call it immediately and also we can re-call it if needed
+  window.renderPersonas();
 
   const perfilActivities = document.getElementById('perfil-activities-container');
   if (perfilActivities) {
@@ -942,7 +1458,9 @@ document.addEventListener('DOMContentLoaded', () => {
   window.renderProfileGrid = function (user) {
     if (!perfilActivities) return;
     perfilActivities.innerHTML = '';
-    const userPosts = MOCK_POSTS.filter(p => p.user.id === user.id);
+    
+    const allPosts = window.currentRenderedPosts || MOCK_POSTS;
+    const userPosts = allPosts.filter(p => p.user.id.toString() === user.id.toString());
 
     if (userPosts.length === 0) {
       perfilActivities.style.display = 'block';
@@ -962,7 +1480,7 @@ document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
   };
 
-  window.toggleSavePost = function (postId, btnElement) {
+  window.toggleSavePost = async function (postId, btnElement) {
     if (!CURRENT_USER.savedPosts) CURRENT_USER.savedPosts = [];
 
     const icon = btnElement.querySelector('i');
@@ -977,6 +1495,18 @@ document.addEventListener('DOMContentLoaded', () => {
       icon.setAttribute('fill', 'var(--primary-color)');
       icon.setAttribute('color', 'var(--primary-color)');
       btnElement.classList.add('active-action');
+      
+      try {
+        const reaccionDTO = {
+            idUsuario: CURRENT_USER.id.toString(),
+            idPublicacion: postId.toString(),
+            tipo: "GUARDAR"
+        };
+        await apiPost(`${API}/api/reacciones`, reaccionDTO);
+        console.log("Publicación guardada registrada en backend");
+      } catch (e) {
+        console.warn("Fallback local para guardar publicación", e);
+      }
     }
     saveData('fitTribe_user', CURRENT_USER);
     if (document.getElementById('view-perfil').classList.contains('active')) {
@@ -1057,26 +1587,58 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  window.renderRanking = function () {
+  window.renderRanking = async function () {
     const container = document.getElementById('ranking-container');
     if (!container) return;
 
-    // Calcular puntos de forma mock: Cada post = 10 pts, cada kilómetro = 5 pts.
-    let userPts = MOCK_POSTS.filter(p => p.user.id == CURRENT_USER.id).reduce((acc, p) => acc + 10 + (parseFloat((p.stats || {}).distance) || 0) * 5, 0);
+    let allUsers = [];
+    try {
+        allUsers = await apiGet(`${API}/usuarios/all`) || [];
+    } catch(e) {}
+    
+    if (allUsers.length === 0) {
+        // Fallback local
+        allUsers = [
+            { id: CURRENT_USER.id, nombre: CURRENT_USER.name, avatar: CURRENT_USER.avatar },
+            { id: 'u2', nombre: 'Ana', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80' },
+            { id: 'u3', nombre: 'John', avatar: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80' },
+            { id: 'u4', nombre: 'Carlos', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80' }
+        ];
+    } else {
+        // Ensure current user is in the list with up to date avatar
+        const cuIndex = allUsers.findIndex(u => u.id.toString() === CURRENT_USER.id.toString());
+        if(cuIndex >= 0) {
+             allUsers[cuIndex].avatar = CURRENT_USER.avatar;
+             allUsers[cuIndex].nombre = CURRENT_USER.name;
+        } else {
+             allUsers.push({ id: CURRENT_USER.id, nombre: CURRENT_USER.name, avatar: CURRENT_USER.avatar });
+        }
+    }
 
-    const users = [
-      { name: CURRENT_USER.name, avatar: CURRENT_USER.avatar, pts: Math.round(userPts) || 50 },
-      { name: 'Ana', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80', pts: 320 },
-      { name: 'John', avatar: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80', pts: 215 },
-      { name: 'Carlos', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80', pts: 180 }
-    ].sort((a, b) => b.pts - a.pts);
+    const users = allUsers.map(u => {
+      // Calculate points based on mock posts or backend (mocking here)
+      let pts = 50;
+      const userPosts = MOCK_POSTS.filter(p => p.user.id.toString() === u.id.toString());
+      if (userPosts.length > 0) {
+         pts = userPosts.reduce((acc, p) => acc + 10 + (parseFloat((p.stats || {}).distance) || 0) * 5, 0);
+      } else if (u.id.toString() !== CURRENT_USER.id.toString()) {
+         // mock random points for others if no posts
+         pts = Math.floor(Math.random() * 300) + 50;
+      }
+      return { 
+          id: u.id,
+          name: u.nombre || u.name, 
+          avatar: u.avatar || 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80', 
+          pts: Math.round(pts) 
+      };
+    }).sort((a, b) => b.pts - a.pts);
 
     container.innerHTML = users.map((u, i) => `
-      <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: var(--surface-color); border-radius: 12px; box-shadow: var(--shadow-sm); ${u.name === CURRENT_USER.name ? 'border: 2px solid var(--primary-color);' : ''}">
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: var(--surface-color); border-radius: 12px; box-shadow: var(--shadow-sm); ${u.id.toString() === CURRENT_USER.id.toString() ? 'border: 2px solid var(--primary-color);' : ''}">
         <div style="display: flex; align-items: center; gap: 12px;">
           <div style="font-weight: bold; font-size: 18px; color: ${i === 0 ? '#fbbf24' : i === 1 ? '#9ca3af' : i === 2 ? '#b45309' : 'var(--text-secondary)'}; width: 24px; text-align: center;">${i + 1}</div>
-          <img src="${u.avatar}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
-          <div style="font-weight: bold; color: var(--text-primary);">${u.name} ${u.name === CURRENT_USER.name ? '(Tú)' : ''}</div>
+          <img src="${u.avatar}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;" onclick="window.openProfile('${u.id}')" style="cursor: pointer;">
+          <div style="font-weight: bold; color: var(--text-primary); cursor: pointer;" onclick="window.openProfile('${u.id}')">${u.name} ${u.id.toString() === CURRENT_USER.id.toString() ? '(Tú)' : ''}</div>
         </div>
         <div style="font-weight: bold; color: var(--primary-color);">${u.pts} pts</div>
       </div>
@@ -1228,15 +1790,27 @@ document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
   };
 
-  // -- Modal Logic --
   let storyTimer = null;
   window.openStory = function (index) {
-    const story = STORIES[index];
+    const story = window.currentRenderedStories ? window.currentRenderedStories[index] : null;
     if (!story) return;
     const viewer = document.getElementById('stories-viewer');
     document.getElementById('story-name').textContent = story.name;
     document.getElementById('story-avatar').src = story.avatar;
-    document.getElementById('story-image').src = story.media || story.avatar;
+    
+    const imgElement = document.getElementById('story-image');
+    const vidElement = document.getElementById('story-video');
+
+    if (story.isVideo) {
+      imgElement.style.display = 'none';
+      vidElement.src = story.media || '';
+      vidElement.style.display = 'block';
+    } else {
+      vidElement.style.display = 'none';
+      vidElement.pause();
+      imgElement.src = story.media || story.avatar;
+      imgElement.style.display = 'block';
+    }
 
     viewer.style.display = 'flex';
     const progress = document.getElementById('story-progress');
@@ -1253,8 +1827,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 5000);
 
     if (story.hasUnseen) {
-      story.hasUnseen = false;
-      saveData('fitTribe_stories', STORIES);
+      ALL_STORIES = loadData('fitTribe_all_stories', []);
+      let storyInAll = ALL_STORIES.find(s => s.userId === story.id);
+      if (storyInAll) {
+        storyInAll.hasUnseen = false;
+        saveData('fitTribe_all_stories', ALL_STORIES);
+      }
       setTimeout(() => window.renderStories(), 5000); // Re-render after story closes
     }
   };
@@ -1267,15 +1845,144 @@ document.addEventListener('DOMContentLoaded', () => {
     progress.style.width = '0%';
   };
 
-  window.openReels = function (image, title) {
+  window.openReels = function (index) {
+    const video = VIDEOS[index];
+    if(!video) return;
+    
     const viewer = document.getElementById('reels-viewer');
-    document.getElementById('reels-video').src = image;
-    document.getElementById('reels-title').textContent = title;
+    const ytElement = document.getElementById('reels-youtube');
+    const vidElement = document.getElementById('reels-video');
+    const imgElement = document.getElementById('reels-image');
+    const playIcon = document.getElementById('reels-play-icon');
+    
+    document.getElementById('reels-title').textContent = video.title;
+    document.getElementById('reels-user-name').textContent = video.user.name;
+    document.getElementById('reels-user-avatar').src = video.user.avatar;
+    document.getElementById('reels-user-info').onclick = function(e) {
+        e.stopPropagation();
+        window.openProfile(video.user.id);
+        window.closeReels();
+    };
+
+    ytElement.style.display = 'none';
+    vidElement.style.display = 'none';
+    imgElement.style.display = 'none';
+    playIcon.style.display = 'none';
+    ytElement.src = '';
+    vidElement.pause();
+
+    if (video.isYoutube && video.youtubeUrl) {
+        const ytId = extractVideoID(video.youtubeUrl);
+        if (ytId) {
+            ytElement.src = 'https://www.youtube.com/embed/' + ytId + '?autoplay=1';
+            ytElement.style.display = 'block';
+        }
+    } else {
+        vidElement.src = video.image || '';
+        vidElement.style.display = 'block';
+        vidElement.play().catch(e => console.log('Autoplay prevented', e));
+    }
+
     viewer.style.display = 'flex';
   };
 
   window.closeReels = function () {
     document.getElementById('reels-viewer').style.display = 'none';
+    document.getElementById('reels-youtube').src = '';
+    document.getElementById('reels-video').pause();
+  };
+
+  // --- ZONAS & VIDEOS UPLOAD ---
+  window.openAddZonaModal = function() {
+    document.getElementById('add-zona-modal').style.display = 'flex';
+    document.getElementById('zona-name-input').value = '';
+    document.getElementById('zona-address-input').value = '';
+    document.getElementById('zona-media-preview').style.display = 'none';
+    document.getElementById('zona-media-preview').innerHTML = '';
+    window.tempZonaImage = null;
+  };
+
+  window.handleZonaMediaSelect = function(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      window.tempZonaImage = e.target.result;
+      const preview = document.getElementById('zona-media-preview');
+      preview.innerHTML = `<img src="${e.target.result}" style="width: 100%; height: auto; border-radius: 8px;">`;
+      preview.style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+  };
+
+  window.submitZona = function() {
+    const name = document.getElementById('zona-name-input').value.trim();
+    const address = document.getElementById('zona-address-input').value.trim();
+    if (!name || !address || !window.tempZonaImage) {
+        alert("Por favor, rellena el nombre, la dirección y añade una foto.");
+        return;
+    }
+    const newZona = {
+        id: Date.now(),
+        name: name,
+        address: address,
+        image: window.tempZonaImage,
+        user: { id: CURRENT_USER.id, name: CURRENT_USER.name, avatar: CURRENT_USER.avatar }
+    };
+    ZONAS.unshift(newZona);
+    saveData('fitTribe_zonas', ZONAS);
+    window.renderZonas();
+    document.getElementById('add-zona-modal').style.display = 'none';
+  };
+
+  window.openAddVideoModal = function() {
+    document.getElementById('add-video-modal').style.display = 'flex';
+    document.getElementById('video-title-input').value = '';
+    document.getElementById('video-youtube-input').value = '';
+    document.getElementById('video-media-preview').style.display = 'none';
+    document.getElementById('video-media-preview').innerHTML = '';
+    window.tempVideoFile = null;
+  };
+
+  window.handleVideoMediaSelect = function(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      window.tempVideoFile = e.target.result;
+      const preview = document.getElementById('video-media-preview');
+      preview.innerHTML = `<video src="${e.target.result}" style="width: 100%; height: auto; border-radius: 8px;" controls></video>`;
+      preview.style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+  };
+
+  window.submitVideo = function() {
+    const title = document.getElementById('video-title-input').value.trim();
+    const youtubeUrl = document.getElementById('video-youtube-input').value.trim();
+    
+    if (!title) {
+        alert("Por favor, añade un título.");
+        return;
+    }
+    if (!youtubeUrl && !window.tempVideoFile) {
+        alert("Por favor, añade un enlace de YouTube o sube un vídeo.");
+        return;
+    }
+
+    const newVideo = {
+        id: Date.now(),
+        title: title,
+        isYoutube: !!youtubeUrl,
+        youtubeUrl: youtubeUrl || null,
+        image: window.tempVideoFile || null,
+        user: { id: CURRENT_USER.id, name: CURRENT_USER.name, avatar: CURRENT_USER.avatar }
+    };
+    
+    VIDEOS.unshift(newVideo);
+    saveData('fitTribe_videos_v2', VIDEOS);
+    window.renderVideos();
+    document.getElementById('add-video-modal').style.display = 'none';
   };
 
   window.openActivityModal = function () {
@@ -1296,6 +2003,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 300);
   };
 
+  window.startLocationSelection = function() {
+    window.closeActivityModal();
+    window.isSelectingLocation = true;
+    let toast = document.getElementById('location-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'location-toast';
+      toast.style.position = 'fixed';
+      toast.style.bottom = '80px';
+      toast.style.left = '50%';
+      toast.style.transform = 'translateX(-50%)';
+      toast.style.background = 'var(--gradient-primary)';
+      toast.style.color = 'white';
+      toast.style.padding = '12px 24px';
+      toast.style.borderRadius = '24px';
+      toast.style.zIndex = '3000';
+      toast.style.boxShadow = 'var(--shadow-md)';
+      toast.style.fontWeight = 'bold';
+      toast.innerHTML = '<i data-lucide="map-pin" style="display:inline-block; vertical-align:middle; margin-right:8px; width:20px; height:20px;"></i> Toca en el mapa para elegir ubicación';
+      document.body.appendChild(toast);
+      lucide.createIcons();
+    }
+    toast.style.display = 'block';
+  };
+
   window.submitActivity = function () {
     const title = document.getElementById('activity-title').value.trim();
     const sport = document.getElementById('activity-sport').value;
@@ -1306,14 +2038,17 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    const lat = window.selectedLatLng ? window.selectedLatLng.lat : 40.4168 + (Math.random() - 0.5) * 0.05;
+    const lng = window.selectedLatLng ? window.selectedLatLng.lng : -3.7038 + (Math.random() - 0.5) * 0.05;
+
     const newMeetup = {
       id: Date.now(),
       title: title,
       sport: sport,
       time: new Date(time).toLocaleString('es-ES', { weekday: 'short', hour: '2-digit', minute: '2-digit' }),
       members: [CURRENT_USER.avatar],
-      lat: 40.4168 + (Math.random() - 0.5) * 0.05,
-      lng: -3.7038 + (Math.random() - 0.5) * 0.05
+      lat: lat,
+      lng: lng
     };
 
     MOCK_MEETUPS.unshift(newMeetup);
@@ -1321,6 +2056,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('activity-title').value = '';
     document.getElementById('activity-time').value = '';
+    document.getElementById('activity-location').value = '';
+    window.selectedLatLng = null;
+    if (window.tempMarker) {
+      window.leafletMap.removeLayer(window.tempMarker);
+      window.tempMarker = null;
+    }
 
     window.renderMeetups();
     if (window.addNotification) window.addNotification(`Has creado la quedada: ${title}`, CURRENT_USER.avatar);

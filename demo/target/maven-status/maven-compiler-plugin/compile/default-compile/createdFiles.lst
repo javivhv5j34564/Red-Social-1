@@ -1,0 +1,11 @@
+feedmicroservice\DemoApplication.class
+feedmicroservice\model\Comentario.class
+feedmicroservice\repository\ActividadesRepository.class
+feedmicroservice\model\Feed.class
+feedmicroservice\model\Feed$TipoFeed.class
+feedmicroservice\model\FeedPublicaciones.class
+feedmicroservice\controller\FeedController.class
+feedmicroservice\repository\PublicacionesRepository.class
+feedmicroservice\repository\ComentarioRepository.class
+feedmicroservice\repository\FeedRepository.class
+feedmicroservice\model\FeedActividades.class

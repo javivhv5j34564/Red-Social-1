@@ -27,6 +27,7 @@ public class UsuarioService {
         u.setDescripcion(dto.getDescripcion());
         u.setTelefono(dto.getTelefono());
         u.setPassword(passwordEncoder.encode(dto.getPassword()));
+        u.setFotoPerfil(dto.getFotoPerfil());
 
         usuarioRepository.save(u);
         return mapToDTO(u);
@@ -44,6 +45,22 @@ public class UsuarioService {
                 .stream()
                 .map(this::mapToDTO)
                 .toList();
+    }
+
+    public UsuarioResponseDTO actualizarUsuario(Long id, UsuarioCreateDTO dto) {
+        Usuario u = usuarioRepository.findById(id)
+                .orElseThrow(() -> new UsuarioNotFoundException("Usuario no encontrado"));
+        
+        if (dto.getNombre() != null) u.setNombre(dto.getNombre());
+        if (dto.getDescripcion() != null) u.setDescripcion(dto.getDescripcion());
+        if (dto.getTelefono() != null) u.setTelefono(dto.getTelefono());
+        if (dto.getPassword() != null && !dto.getPassword().isEmpty()) {
+            u.setPassword(passwordEncoder.encode(dto.getPassword()));
+        }
+        if (dto.getFotoPerfil() != null) u.setFotoPerfil(dto.getFotoPerfil());
+        
+        usuarioRepository.save(u);
+        return mapToDTO(u);
     }
 
     public void seguir(Long idSeguidor, Long idSeguido) {
