@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>FitTribe - Unidos por el deporte</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    .view {
+      display: none;
+    }
+
+    .view.active {
+      display: block;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app-container">
+    <!-- Sidebar Overlay -->
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="st-logo sidebar-logo">
+          <span>F</span><span style="margin-top: -4px;">T</span>
+        </div>
+        <span
+          style="font-size: 22px; font-weight: 800; color: var(--primary-color); margin-left: 12px; flex: 1; letter-spacing: 0.5px;">FitTribe</span>
+        <button class="close-sidebar" id="close-sidebar">
+          <i data-lucide="x" color="var(--text-primary)"></i>
+        </button>
+      </div>
+
+      <div class="sidebar-content">
+        <div class="sidebar-user">
+          <img
+            src="https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80"
+            alt="Profile" class="avatar large">
+          <div class="sidebar-user-info">
+            <h3>Alex Runner</h3>
+            <p>@alexrunner</p>
+          </div>
+        </div>
+
+        <nav class="sidebar-nav">
+          <div class="sidebar-item" data-target="view-perfil">
+            <i data-lucide="user"></i><span>Mi Perfil</span>
+          </div>
+          <div class="sidebar-item" data-target="view-config">
+            <i data-lucide="settings"></i><span>Configuración</span>
+          </div>
+          <div class="sidebar-item" data-target="view-ayuda">
+            <i data-lucide="help-circle"></i><span>Ayuda y Soporte</span>
+          </div>
+        </nav>
+      </div>
+
+      <div class="sidebar-footer">
+        <button class="sidebar-item logout" id="logout-btn">
+          <i data-lucide="log-out"></i><span>Cerrar Sesión</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Header -->
+    <header class="top-header" id="top-header" style="display: none;">
+      <button class="menu-btn" id="open-sidebar">
+        <i data-lucide="menu" color="var(--text-secondary)"></i>
+      </button>
+      <div class="logo-center">
+        <div class="st-logo">
+          <span>F</span><span style="margin-top: -4px;">T</span>
+        </div>
+      </div>
+      <div class="header-right flex-row gap-3">
+        <div style="position: relative; cursor: pointer;"
+          onclick="document.getElementById('notifications-panel').classList.toggle('active')">
+          <i id="bell-icon" data-lucide="bell" color="var(--text-secondary)"></i>
+          <span id="notifications-badge"
+            style="position: absolute; top: -2px; right: -2px; background: var(--primary-color); width: 8px; height: 8px; border-radius: 50%; display: none;"></span>
+        </div>
+        <i id="inbox-icon" data-lucide="send" color="var(--text-secondary)" style="cursor: pointer;"
+          onclick="window.showView('view-inbox')"></i>
+        <img
+          src="https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80"
+          alt="Profile" class="avatar" width="28" height="28" style="cursor: pointer;" id="header-avatar"
+          onclick="window.openProfile('current')">
+      </div>
+    </header>
+
+    <!-- Notifications Panel -->
+    <div id="notifications-panel" class="notifications-panel"
+      style="display: none; position: absolute; top: 60px; right: 16px; width: 300px; background: var(--surface-color); border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); border: 1px solid var(--surface-border); z-index: 100; max-height: 400px; overflow-y: auto;">
+      <div
+        style="padding: 16px; border-bottom: 1px solid var(--surface-border); font-weight: bold; color: var(--text-primary);">
+        Notificaciones</div>
+      <div id="notifications-list" style="display: flex; flex-direction: column;">
+        <!-- Notifications injected via JS -->
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="scrollable-content" id="main-content">
+
+      <!-- Login View -->
+      <div id="view-login" class="view active">
+        <div class="login-container">
+          <div class="login-header">
+            <h1
+              style="color: var(--primary-color); margin: 0 0 8px 0; font-size: 32px; font-weight: 900; letter-spacing: 1px;">
+              FitTribe</h1>
+            <span class="app-subtitle">Unidos por el deporte</span>
+          </div>
+          <div class="login-logo-container">
+            <div class="login-st-logo">
+              <span>F</span><span style="margin-top: -8px;">T</span>
+            </div>
+          </div>
+          <form class="login-form" id="login-form" style="margin-top: 30px;">
+            <div class="input-group">
+              <input type="text" id="login-username" placeholder="Nombre" class="login-input" required>
+            </div>
+            <div class="input-group password-group">
+              <input type="password" placeholder="Contraseña" class="login-input" required>
+              <button type="button" class="toggle-password">
+                <i data-lucide="eye"></i>
+              </button>
+            </div>
+            <div class="login-options">
+              <label class="checkbox-container">
+                <input type="checkbox">
+                <span class="checkmark"></span> Recordarme
+              </label>
+              <a href="#" class="forgot-password"
+                onclick="alert('Se ha enviado un correo para recuperar la contraseña.'); return false;">¿Olvidaste tu
+                contraseña?</a>
+            </div>
+            <button type="submit" class="login-btn">INGRESAR</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Home View -->
+      <div id="view-home" class="view">
+        <div class="home-container" style="position: relative;">
+          <!-- Pull to refresh spinner -->
+          <div id="ptr-spinner"
+            style="position: absolute; top: -40px; left: 50%; transform: translateX(-50%); width: 32px; height: 32px; background: var(--surface-color); border-radius: 50%; box-shadow: 0 2px 10px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center; opacity: 0; z-index: 10;">
+            <i data-lucide="loader" style="animation: spin 1s linear infinite; color: var(--primary-color);"></i>
+          </div>
+
+          <div class="feed-header">
+            <h2 class="section-title">Unidos por el deporte</h2>
+          </div>
+
+          <!-- Stories Section -->
+          <div class="stories-container" id="stories-container"
+            style="display: flex; gap: 12px; overflow-x: auto; padding: 16px 0; margin-bottom: 16px; scrollbar-width: none;">
+            <!-- Stories will be injected here via JS -->
+          </div>
+          <input type="file" id="story-upload-input" accept="image/*,video/*" style="display: none;"
+            onchange="window.handleStoryUpload(event)">
+
+          <!-- Create Post Section -->
+          <div class="create-post-container"
+            style="background: var(--surface-color); padding: 16px; border-radius: 12px; margin-bottom: 24px; box-shadow: var(--shadow-sm);">
+            <div style="display: flex; gap: 12px; margin-bottom: 12px;">
+              <img id="create-post-avatar"
+                src="https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80"
+                class="avatar" style="width: 40px; height: 40px; min-width: 40px;">
+              <textarea id="create-post-text" class="input-field" placeholder="¿Qué entrenamiento has hecho hoy?"
+                rows="2" style="resize: none;"></textarea>
+            </div>
+            <div style="display: flex; gap: 12px; margin-bottom: 12px;">
+              <input type="text" id="create-post-distance" class="input-field" placeholder="Distancia (ej: 5 km)"
+                style="flex: 1;">
+              <input type="text" id="create-post-time" class="input-field" placeholder="Tiempo (ej: 25:00)"
+                style="flex: 1;">
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div class="flex-row gap-3">
+                <label for="create-post-media"
+                  style="cursor: pointer; color: var(--primary-color); display: flex; align-items: center; gap: 4px;">
+                  <i data-lucide="image"></i> <span>Foto/Vídeo</span>
+                </label>
+                <input type="file" id="create-post-media" accept="image/*,video/*" style="display: none;"
+                  onchange="document.getElementById('create-post-media-name').textContent = this.files[0] ? this.files[0].name : ''">
+                <span id="create-post-media-name" class="text-xs text-secondary"></span>
+              </div>
+              <button class="btn" onclick="window.createPost()">Publicar</button>
+            </div>
+          </div>
+
+          <div class="feed-filters"
+            style="display: flex; gap: 8px; overflow-x: auto; padding: 0 0 16px; scrollbar-width: none;">
+            <div class="search-chip active" onclick="window.filterFeed('Todo', this)">Todo</div>
+            <div class="search-chip" onclick="window.filterFeed('Running', this)">Running</div>
+            <div class="search-chip" onclick="window.filterFeed('Bici', this)">Ciclismo</div>
+            <div class="search-chip" onclick="window.filterFeed('Gym', this)">Gimnasio</div>
+          </div>
+
+          <div class="feed" id="feed-container">
+            <!-- Posts rendered dynamically via JS -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Quedadas View -->
+      <div id="view-quedadas" class="view">
+        <div class="quedadas-container">
+          <div class="search-bar-container">
+            <div class="search-input-wrapper">
+              <i data-lucide="search" color="var(--text-secondary)"></i>
+              <input type="text" placeholder="Buscar gente, vídeos, zonas..." class="search-input">
+            </div>
+          </div>
+          <h2 class="page-title">Buscar Actividades (La Pachanga)</h2>
+
+          <!-- Map Filters -->
+          <div
+            style="display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none;">
+            <div class="search-chip active" style="white-space: nowrap;" onclick="window.filterMeetups('Todos', this)">
+              Todos</div>
+            <div class="search-chip" style="white-space: nowrap;" onclick="window.filterMeetups('Fútbol', this)">Fútbol
+            </div>
+            <div class="search-chip" style="white-space: nowrap;" onclick="window.filterMeetups('Pádel', this)">Pádel
+            </div>
+            <div class="search-chip" style="white-space: nowrap;" onclick="window.filterMeetups('Running', this)">
+              Running</div>
+            <div class="search-chip" style="white-space: nowrap;" onclick="window.filterMeetups('Cerca de mí', this)">
+              Cerca de mí</div>
+            <div class="search-chip" style="white-space: nowrap;" onclick="window.filterMeetups('Hoy', this)">Hoy</div>
+          </div>
+          <div class="map-container"
+            style="position: relative; height: 300px; border-radius: 12px; overflow: hidden; margin-bottom: 24px; box-shadow: var(--shadow-sm); z-index: 1;">
+            <div id="leaflet-map" style="width: 100%; height: 100%;"></div>
+            <button id="create-meetup-btn" class="btn" onclick="window.openActivityModal()"
+              style="position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 1000; box-shadow: 0 4px 10px rgba(0,0,0,0.3); padding: 12px 24px; border-radius: 24px; font-weight: bold;">
+              <i data-lucide="plus-circle" style="margin-right: 8px;"></i> Crear Quedada
+            </button>
+          </div>
+          <div class="meetups-list" id="meetups-container">
+            <!-- Meetups dynamically rendered -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Busqueda View -->
+      <div id="view-busqueda" class="view">
+        <div class="busqueda-container">
+          <div class="search-bar-container">
+            <div class="search-input-wrapper">
+              <i data-lucide="search" color="var(--text-secondary)"></i>
+              <input type="text" placeholder="Buscar gente, vídeos, zonas..." class="search-input">
+            </div>
+            <div class="search-categories">
+              <div class="search-chip active">Todo</div>
+              <div class="search-chip">Zonas</div>
+              <div class="search-chip">Vídeos</div>
+              <div class="search-chip">Personas</div>
+              <div class="search-chip">Ranking</div>
+            </div>
+          </div>
+          <section class="search-section" id="section-zonas">
+            <div class="section-header">
+              <i data-lucide="map-pin" color="var(--primary-color)"></i>
+              <h3>Zonas Populares</h3>
+            </div>
+            <div class="zonas-grid" id="zonas-container">
+              <!-- Zonas dynamically rendered -->
+            </div>
+          </section>
+
+          <section class="search-section" id="section-videos" style="display: block;">
+            <div class="section-header">
+              <i data-lucide="video" color="var(--primary-color)"></i>
+              <h3>Vídeos</h3>
+            </div>
+            <div class="zonas-grid" id="videos-container">
+              <!-- Videos dynamically rendered -->
+            </div>
+          </section>
+
+          <section class="search-section" id="section-personas" style="display: block;">
+            <div class="section-header">
+              <i data-lucide="users" color="var(--primary-color)"></i>
+              <h3>Personas</h3>
+            </div>
+            <div class="zonas-grid" id="personas-container">
+              <!-- Personas dynamically rendered -->
+            </div>
+          </section>
+
+          <section class="search-section" id="section-ranking" style="display: none;">
+            <div class="section-header">
+              <i data-lucide="trophy" color="var(--primary-color)"></i>
+              <h3>Top Atletas (Ranking)</h3>
+            </div>
+            <div id="ranking-container" style="display: flex; flex-direction: column; gap: 12px;">
+              <!-- Ranking rendered dynamically -->
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <!-- Perfil View -->
+      <div id="view-perfil" class="view">
+        <div class="perfil-container">
+          <div class="perfil-header-bg"></div>
+          <div class="perfil-user-info">
+            <div class="perfil-avatar-container">
+              <img id="perfil-avatar"
+                src="https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80"
+                alt="Marcos" class="perfil-large-avatar">
+            </div>
+            <h2 id="perfil-name" class="perfil-name">Marcos</h2>
+            <p id="perfil-description" class="text-secondary text-sm"
+              style="margin-bottom: 16px; max-width: 80%; text-align: center;">Sin descripción</p>
+            <div class="flex-row gap-3" style="margin-bottom: 16px; justify-content: center;">
+              <button id="perfil-follow-btn" class="btn"
+                style="display: flex; align-items: center; gap: 8px; padding: 8px 24px;">
+                <i data-lucide="user-plus"></i><span id="perfil-follow-text">Seguir</span>
+              </button>
+              <button id="perfil-message-btn" class="btn btn-outline"
+                style="display: none; align-items: center; gap: 8px; padding: 8px 24px; border-color: var(--primary-color);">
+                <i data-lucide="message-square"></i><span style="color: var(--text-primary)">Mensaje</span>
+              </button>
+            </div>
+            <div class="perfil-stats-row"
+              style="display: flex; justify-content: space-around; width: 100%; margin: 16px 0; padding: 0 16px; border-top: 1px solid var(--surface-border); border-bottom: 1px solid var(--surface-border); padding-top: 16px; padding-bottom: 16px;">
+              <div class="perfil-stat"
+                style="display: flex; flex-direction: column; align-items: center; cursor: pointer;">
+                <span class="stat-value" id="perfil-stat-actividades"
+                  style="font-weight: 800; font-size: 18px; color: var(--text-primary);">0</span>
+                <span class="stat-label" style="font-size: 13px; color: var(--text-secondary);">Actividades</span>
+              </div>
+              <div class="perfil-stat"
+                style="display: flex; flex-direction: column; align-items: center; cursor: pointer;">
+                <span class="stat-value" id="perfil-stat-seguidores"
+                  style="font-weight: 800; font-size: 18px; color: var(--text-primary);">0</span>
+                <span class="stat-label" style="font-size: 13px; color: var(--text-secondary);">Seguidores</span>
+              </div>
+              <div class="perfil-stat"
+                style="display: flex; flex-direction: column; align-items: center; cursor: pointer;">
+                <span class="stat-value" id="perfil-stat-seguidos"
+                  style="font-weight: 800; font-size: 18px; color: var(--text-primary);">0</span>
+                <span class="stat-label" style="font-size: 13px; color: var(--text-secondary);">Seguidos</span>
+              </div>
+            </div>
+          </div>
+          <div class="perfil-tabs">
+            <div class="perfil-tab active" data-tab="actividad">Posts</div>
+            <div class="perfil-tab" data-tab="estadisticas">Estadísticas</div>
+            <div class="perfil-tab" data-tab="logros">Retos y Logros</div>
+            <div class="perfil-tab" data-tab="actividades_grupales">Actividades</div>
+            <div class="perfil-tab" data-tab="guardados" id="tab-guardados-btn">Guardados</div>
+          </div>
+
+          <div id="tab-actividad" class="perfil-tab-content" style="display: block;">
+            <div class="perfil-activities" id="perfil-activities-container">
+              <!-- Profile activities dynamically rendered -->
+            </div>
+          </div>
+
+          <div id="tab-estadisticas" class="perfil-tab-content"
+            style="display: none; padding: 24px; text-align: center;">
+            <p class="text-secondary">Estadísticas detalladas estarán disponibles pronto.</p>
+          </div>
+
+          <div id="tab-logros" class="perfil-tab-content" style="display: none; padding: 16px;">
+            <!-- Retos Activos -->
+            <div id="retos-activos-container" style="margin-bottom: 32px;">
+              <h3 style="margin-bottom: 12px; font-size: 16px; display: flex; align-items: center; gap: 6px;"><i
+                  data-lucide="target" color="var(--primary-color)"></i>Retos Activos</h3>
+              <div id="retos-list" style="display: flex; flex-direction: column; gap: 12px;"></div>
+            </div>
+
+            <!-- Add Logro Form (only for current user) -->
+            <div id="add-logro-container"
+              style="background: var(--surface-color); padding: 16px; border-radius: 12px; margin-bottom: 24px; box-shadow: var(--shadow-sm);">
+              <h3 style="margin-bottom: 12px; font-size: 16px; display: flex; align-items: center; gap: 6px;"><i
+                  data-lucide="plus-circle" color="var(--primary-color)"></i>Añadir Nuevo Logro</h3>
+              <div class="flex-row gap-3">
+                <input type="text" id="logro-title" class="input-field" placeholder="Ej: Mi primera Maratón">
+                <button class="btn" onclick="window.addLogro()">Añadir</button>
+              </div>
+            </div>
+
+            <!-- Logros List -->
+            <div id="logros-container"
+              style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 16px;">
+              <!-- Logros rendered here -->
+            </div>
+          </div>
+
+          <div id="tab-actividades_grupales" class="perfil-tab-content" style="display: none; padding: 16px;">
+            <p id="no-activities-msg" class="text-secondary" style="text-align: center;">Aún no te has unido a ninguna
+              actividad.</p>
+            <div id="joined-activities-container" class="meetups-list"></div>
+          </div>
+
+          <div id="tab-guardados" class="perfil-tab-content" style="display: none; padding: 16px;">
+            <p id="no-saved-msg" class="text-secondary" style="text-align: center;">Aún no has guardado ninguna
+              publicación.</p>
+            <div class="perfil-activities" id="saved-activities-container">
+              <!-- Saved posts dynamically rendered here -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Configuración View -->
+      <div id="view-config" class="view">
+        <div class="config-container" style="padding: 24px;">
+          <h2 class="page-title" style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px;"><i
+              data-lucide="settings"></i>Configuración</h2>
+
+          <form id="config-form" class="flex-col gap-4">
+            <div class="input-group">
+              <label class="text-sm text-secondary" style="margin-bottom:4px; display:block;">Nombre</label>
+              <input type="text" id="config-name" class="input-field" placeholder="Tu nombre">
+            </div>
+
+            <div class="input-group">
+              <label class="text-sm text-secondary" style="margin-bottom:4px; display:block;">Foto de Perfil</label>
+              <input type="file" id="config-avatar-file" class="input-field" accept="image/*" style="padding-top: 8px;">
+              <input type="hidden" id="config-avatar">
+            </div>
+
+            <div class="input-group">
+              <label class="text-sm text-secondary" style="margin-bottom:4px; display:block;">Descripción</label>
+              <textarea id="config-desc" class="input-field" placeholder="Escribe algo sobre ti..." rows="3"
+                style="resize:vertical;"></textarea>
+            </div>
+
+            <button type="submit" class="btn" style="margin-top: 16px;">Guardar Cambios</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Ayuda View -->
+      <div id="view-ayuda" class="view">
+        <div class="ayuda-container" style="padding: 24px;">
+          <h2 class="page-title" style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px;"><i
+              data-lucide="help-circle"></i>Ayuda y Soporte</h2>
+
+          <div class="ayuda-content" style="color: var(--text-primary); line-height: 1.6;">
+            <div class="ayuda-section"
+              style="margin-bottom: 24px; background: var(--surface-color); padding: 16px; border-radius: 12px; box-shadow: var(--shadow-sm);">
+              <h3
+                style="color: var(--primary-color); margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="home"></i> Inicio (Feed)
+              </h3>
+              <p class="text-sm text-secondary">Aquí verás las publicaciones de tus amigos y las tuyas. Puedes
+                interactuar con ellas dando "Reacciones", comentando o compartiéndolas. Haz clic en el nombre de alguien
+                para ver su perfil.</p>
+            </div>
+
+            <div class="ayuda-section"
+              style="margin-bottom: 24px; background: var(--surface-color); padding: 16px; border-radius: 12px; box-shadow: var(--shadow-sm);">
+              <h3
+                style="color: var(--primary-color); margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="file-text"></i> Pachangas
+              </h3>
+              <p class="text-sm text-secondary">La sección de quedadas deportivas. Busca grupos en tu zona, únete a
+                partidos de fútbol o grupos de running. Haz clic en "Join" para apuntarte a una actividad.</p>
+            </div>
+
+            <div class="ayuda-section"
+              style="margin-bottom: 24px; background: var(--surface-color); padding: 16px; border-radius: 12px; box-shadow: var(--shadow-sm);">
+              <h3
+                style="color: var(--primary-color); margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="search"></i> Buscar
+              </h3>
+              <p class="text-sm text-secondary">Utiliza esta sección para descubrir nuevas zonas para hacer deporte,
+                encontrar otros usuarios o ver vídeos de entrenamiento. Puedes filtrar por categorías usando los botones
+                superiores.</p>
+            </div>
+
+            <div class="ayuda-section"
+              style="margin-bottom: 24px; background: var(--surface-color); padding: 16px; border-radius: 12px; box-shadow: var(--shadow-sm);">
+              <h3
+                style="color: var(--primary-color); margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="user"></i> Tu Perfil
+              </h3>
+              <p class="text-sm text-secondary">Aquí puedes ver toda tu actividad, tus estadísticas y logros. Desde el
+                menú lateral puedes acceder a <strong>Configuración</strong> para editar tu foto, tu nombre y añadir una
+                descripción sobre ti.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat View -->
+      <div id="view-chat" class="view">
+        <div class="chat-container">
+          <div class="chat-header-bar"
+            style="display: flex; align-items: center; gap: 12px; padding: 16px; background: var(--surface-color); border-bottom: 1px solid var(--surface-border); position: sticky; top: 0; z-index: 10;">
+            <button class="menu-btn" onclick="window.closeChat()">
+              <i data-lucide="arrow-left" color="var(--text-primary)"></i>
+            </button>
+            <img id="chat-avatar" src="" class="avatar" style="width: 40px; height: 40px;">
+            <h3 id="chat-name" style="margin: 0; font-size: 16px; color: var(--text-primary);">User</h3>
+          </div>
+          <div class="chat-messages" id="chat-messages-container"
+            style="padding: 16px; display: flex; flex-direction: column; gap: 12px; min-height: 400px;">
+            <!-- Messages go here -->
+          </div>
+          <div class="chat-input-wrapper"
+            style="padding: 16px; background: var(--surface-color); border-top: 1px solid var(--surface-border); display: flex; gap: 12px; position: sticky; bottom: 0;">
+            <input type="text" id="chat-input" class="input-field" placeholder="Escribe un mensaje..." style="flex: 1;">
+            <button class="btn" onclick="window.sendMessage()">
+              <i data-lucide="send"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      <!-- Inbox View -->
+      <div id="view-inbox" class="view">
+        <div class="inbox-container" style="padding: 16px;">
+          <h2 class="page-title" style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px;"><i
+              data-lucide="send"></i> Mensajes Directos</h2>
+          <div class="search-input-wrapper" style="margin-bottom: 24px;">
+            <i data-lucide="search" color="var(--text-secondary)"></i>
+            <input type="text" placeholder="Buscar mensajes..." class="search-input">
+          </div>
+          <div id="inbox-list" style="display: flex; flex-direction: column; gap: 16px;">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- Comments Bottom Sheet -->
+    <div id="comments-overlay"
+      style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; opacity: 0; transition: opacity 0.3s ease;"
+      onclick="window.closeCommentsSheet()"></div>
+    <div id="comments-sheet"
+      style="position: fixed; bottom: -100%; left: 0; right: 0; background: var(--surface-color); height: 70vh; border-top-left-radius: 20px; border-top-right-radius: 20px; z-index: 1001; transition: bottom 0.3s cubic-bezier(0.175, 0.885, 0.32, 1); display: flex; flex-direction: column; box-shadow: 0 -5px 25px rgba(0,0,0,0.1);">
+      <div style="width: 40px; height: 5px; background: var(--surface-border); border-radius: 10px; margin: 12px auto;">
+      </div>
+      <h3
+        style="text-align: center; font-size: 16px; border-bottom: 1px solid var(--surface-border); padding-bottom: 12px; margin-bottom: 0;">
+        Comentarios</h3>
+      <div id="sheet-comments-list"
+        style="flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 16px;">
+        <!-- Comments injected here -->
+      </div>
+      <div
+        style="padding: 16px; border-top: 1px solid var(--surface-border); display: flex; gap: 12px; background: var(--surface-color);">
+        <img
+          src="https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80"
+          class="avatar" style="width: 40px; height: 40px;" id="sheet-comment-avatar">
+        <input type="text" id="sheet-comment-input" class="input-field" placeholder="Añade un comentario..."
+          style="flex: 1;">
+        <button id="sheet-comment-send" class="btn"
+          style="padding: 0; width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+          <i data-lucide="send"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Stories Viewer Modal -->
+    <div id="stories-viewer"
+      style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #000; z-index: 2000; flex-direction: column;">
+      <div style="position: absolute; top: 16px; left: 16px; right: 16px; display: flex; gap: 4px; z-index: 2001;">
+        <div style="height: 2px; flex: 1; background: rgba(255,255,255,0.3); border-radius: 2px; overflow: hidden;">
+          <div id="story-progress" style="height: 100%; width: 0%; background: #fff; transition: width 0.1s linear;">
+          </div>
+        </div>
+      </div>
+      <div
+        style="position: absolute; top: 32px; left: 16px; display: flex; align-items: center; gap: 12px; z-index: 2001;">
+        <img id="story-avatar" src="" style="width: 32px; height: 32px; border-radius: 50%; border: 1px solid #fff;">
+        <span id="story-name"
+          style="color: #fff; font-weight: bold; font-size: 14px; text-shadow: 0 1px 3px rgba(0,0,0,0.8);"></span>
+      </div>
+      <button onclick="window.closeStory()"
+        style="position: absolute; top: 32px; right: 16px; background: none; border: none; z-index: 2001;">
+        <i data-lucide="x" color="#fff"></i>
+      </button>
+      <div id="story-content-container"
+        style="flex: 1; position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+        <img id="story-image" src="" style="width: 100%; max-height: 100%; object-fit: contain; display: none;">
+        <video id="story-video" src="" style="width: 100%; max-height: 100%; object-fit: contain; display: none;"
+          autoplay playsinline controls></video>
+      </div>
+    </div>
+
+    <!-- Reels/Video Viewer Modal -->
+    <div id="reels-viewer"
+      style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #000; z-index: 2000; flex-direction: column;">
+      <button onclick="window.closeReels()"
+        style="position: absolute; top: 32px; left: 16px; background: none; border: none; z-index: 2001;">
+        <i data-lucide="arrow-left" color="#fff"></i>
+      </button>
+      <div
+        style="flex: 1; position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+        <img id="reels-video" src="" style="width: 100%; height: 100%; object-fit: cover; opacity: 0.8;">
+        <i data-lucide="play" color="#fff" fill="#fff"
+          style="position: absolute; width: 64px; height: 64px; opacity: 0.5;"></i>
+        <div style="position: absolute; bottom: 40px; left: 16px; right: 60px;">
+          <h3 id="reels-title" style="color: #fff; margin: 0 0 8px 0; text-shadow: 0 1px 3px rgba(0,0,0,0.8);">Video
+            Title</h3>
+          <p style="color: rgba(255,255,255,0.8); margin: 0; font-size: 14px;">Swipe up for next</p>
+        </div>
+        <div
+          style="position: absolute; bottom: 40px; right: 16px; display: flex; flex-direction: column; gap: 24px; align-items: center;">
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; color: #fff;">
+            <i data-lucide="heart" fill="#fff"></i><span style="font-size: 12px;">12k</span>
+          </div>
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; color: #fff;">
+            <i data-lucide="message-circle"></i><span style="font-size: 12px;">340</span>
+          </div>
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; color: #fff;">
+            <i data-lucide="send"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Create Activity Modal -->
+    <div id="activity-modal-overlay"
+      style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 2000; opacity: 0; transition: opacity 0.3s ease;">
+    </div>
+    <div id="activity-modal"
+      style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -40%); width: 90%; max-width: 400px; background: var(--surface-color); border-radius: 16px; z-index: 2001; padding: 24px; display: none; opacity: 0; transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1); flex-direction: column; gap: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="margin: 0; color: var(--text-primary); font-size: 18px;">Crear Nueva Quedada</h3>
+        <button onclick="window.closeActivityModal()" style="background: none; border: none; cursor: pointer;">
+          <i data-lucide="x" color="var(--text-secondary)"></i>
+        </button>
+      </div>
+      <div class="input-group">
+        <label style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; display: block;">Título de la
+          quedada</label>
+        <input type="text" id="activity-title" class="input-field" placeholder="Ej: Pachanga en el Retiro"
+          style="width: 100%;">
+      </div>
+      <div class="input-group">
+        <label
+          style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; display: block;">Deporte</label>
+        <select id="activity-sport" class="input-field" style="width: 100%;">
+          <option>Fútbol</option>
+          <option>Pádel</option>
+          <option>Running</option>
+          <option>Tenis</option>
+          <option>Baloncesto</option>
+        </select>
+      </div>
+      <div class="input-group">
+        <label style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; display: block;">Fecha y
+          Hora</label>
+        <input type="datetime-local" id="activity-time" class="input-field" style="width: 100%;">
+      </div>
+      <div class="input-group">
+        <label style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; display: block;">Ubicación
+          (Toca en el mapa para fijar)</label>
+        <div style="position: relative;">
+          <input type="text" id="activity-location" class="input-field" placeholder="Selecciona en el mapa..."
+            style="width: 100%; padding-left: 36px;" readonly>
+          <i data-lucide="map-pin"
+            style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 16px; color: var(--primary-color);"></i>
+        </div>
+      </div>
+      <button class="btn" style="width: 100%; margin-top: 8px;" onclick="window.submitActivity()">Crear Evento</button>
+    </div>
+    <nav class="bottom-nav" id="bottom-nav" style="display: none;">
+      <div class="nav-item active" data-target="view-home">
+        <i data-lucide="home"></i>
+      </div>
+      <div class="nav-item" data-target="view-quedadas">
+        <i data-lucide="file-text"></i>
+      </div>
+      <div class="nav-item" data-target="view-busqueda">
+        <i data-lucide="arrow-left-right"></i>
+      </div>
+      <div class="nav-item" data-target="view-perfil">
+        <i data-lucide="user"></i>
+      </div>
+    </nav>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+
+</html>

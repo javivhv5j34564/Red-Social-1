@@ -1,0 +1,104 @@
+{
+  "info": {
+    "name": "Feed Microservice API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "API collection for the Feed Microservice built with Spring Boot"
+  },
+  "item": [
+    {
+      "name": "Get Feed by User",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/feed/{{usuarioId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["feed", "{{usuarioId}}"]
+        },
+        "description": "Retrieve all feed entries for a specific user"
+      },
+      "response": []
+    },
+    {
+      "name": "Create Activity",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"feed\":{\"usuarioDestinatario\":{{usuarioId}}},\"descripcion\":\"Nueva actividad de ejemplo\"}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/feed/actividad",
+          "host": ["{{baseUrl}}"],
+          "path": ["feed", "actividad"]
+        },
+        "description": "Create a new activity in the feed"
+      },
+      "response": []
+    },
+    {
+      "name": "Create Publication",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"feed\":{\"usuarioDestinatario\":{{usuarioId}}},\"contenido\":\"Nueva publicacion de ejemplo\"}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/feed/publicacion",
+          "host": ["{{baseUrl}}"],
+          "path": ["feed", "publicacion"]
+        },
+        "description": "Create a new publication in the feed"
+      },
+      "response": []
+    },
+    {
+      "name": "Create Comment",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"comentario\":\"Nuevo comentario de ejemplo\",\"usuarioId\":{{usuarioId}},\"publicacion\":{\"idPublicaciones\":1}}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/feed/comentario",
+          "host": ["{{baseUrl}}"],
+          "path": ["feed", "comentario"]
+        },
+        "description": "Create a new comment on a publication (requires existing publication ID)"
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8083",
+      "type": "string"
+    },
+    {
+      "key": "usuarioId",
+      "value": "1",
+      "type": "string"
+    }
+  ]
+}
