@@ -361,10 +361,10 @@ document.addEventListener('DOMContentLoaded', () => {
               descripcion: CURRENT_USER.description,
               fotoPerfil: CURRENT_USER.avatar
           };
-          await apiPut(`${API}/usuarios/${CURRENT_USER.id}`, updateData);
-          console.log("Perfil actualizado en backend");
+          const response = await apiPut(`${API}/usuarios/${CURRENT_USER.id}`, updateData);
+          console.log("✅ Perfil actualizado en backend:", response);
         } catch (e) {
-          console.warn("Fallback local para actualizar perfil", e);
+          console.warn("⚠️ Fallback local para actualizar perfil", e);
         }
 
         // Update sidebar UI
@@ -381,6 +381,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (createPostAvatar) createPostAvatar.src = CURRENT_USER.avatar;
 
         saveData('fitTribe_user', CURRENT_USER);
+        
+        // 🔄 Refresh personas and feed to show updated profile across the app
+        if (typeof window.renderPersonas === 'function') {
+          setTimeout(() => window.renderPersonas(), 50);
+        }
+        if (typeof window.renderFeed === 'function') {
+          setTimeout(() => window.renderFeed(), 100);
+        }
 
         // Update existing posts and comments to reflect new profile details
         let postsChanged = false;
@@ -405,13 +413,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (postsChanged) {
           saveData('fitTribe_posts', MOCK_POSTS);
-          if (typeof window.renderFeed === 'function') {
-            window.renderFeed();
-          }
-        }
-        
-        if (typeof window.renderPersonas === 'function') {
-          window.renderPersonas();
         }
 
         alert('Configuración guardada correctamente.');
@@ -735,7 +736,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const commentData = {
           idUsuario: CURRENT_USER.id.toString(),
           idPublicacion: postId.toString(),
-          contenido: text
+          texto: text
         };
         await apiPost(`${API}/api/comentarios`, commentData);
         console.log("Comentario guardado en el backend");
@@ -987,10 +988,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                 }
                             }
                             return {
-                                author: cName,
-                                text: c.contenido,
-                                avatar: cAvatar,
-                                userId: c.idUsuario
+                              author: cName,
+                              text: c.texto,
+                              avatar: cAvatar,
+                              userId: c.idUsuario
                             };
                         });
                     }
@@ -1381,65 +1382,75 @@ document.addEventListener('DOMContentLoaded', () => {
     let allUsers = [];
     try {
         allUsers = await apiGet(`${API}/usuarios/all`) || [];
-    } catch(e) {}
+        console.log('✅ Usuarios obtenidos del backend:', allUsers.length, allUsers);
+    } catch(e) {
+        console.warn('⚠️ Error obteniendo usuarios del backend:', e);
+    }
     
     let ALL_STORIES = loadData('fitTribe_all_stories', []);
     
-    // Siempre fusionar los usuarios del backend con los locales (MOCK_POSTS y ALL_STORIES)
-    // para asegurar que Muelas, Marcos Broncano y otros usuarios por defecto siempre aparezcan.
-    const localUsersMap = new Map();
+    // Crear mapa de usuarios con datos frescos del backend como prioridad
+    const userMap = new Map();
+    
+    // 1. Agregar usuarios del backend (prioridad máxima)
     allUsers.forEach(u => {
-        if (u && u.id) localUsersMap.set(u.id.toString(), u);
-    });
-    
-    ALL_STORIES.forEach(s => {
-        if (s && s.userId && !localUsersMap.has(s.userId.toString())) {
-            localUsersMap.set(s.userId.toString(), { id: s.userId, nombre: s.name, avatar: s.avatar });
+        if (u && u.id) {
+            userMap.set(u.id.toString(), {
+                id: u.id,
+                nombre: u.nombre,
+                fotoPerfil: u.fotoPerfil,
+                descripcion: u.descripcion,
+                source: 'backend'
+            });
         }
     });
     
+    // 2. Agregar usuarios de MOCK_POSTS solo si no están en backend
     MOCK_POSTS.forEach(p => {
-        if (p.user && p.user.id && !localUsersMap.has(p.user.id.toString())) {
-            localUsersMap.set(p.user.id.toString(), { id: p.user.id, nombre: p.user.name, avatar: p.user.avatar });
+        if (p.user && p.user.id && !userMap.has(p.user.id.toString())) {
+            userMap.set(p.user.id.toString(), {
+                id: p.user.id,
+                nombre: p.user.name,
+                fotoPerfil: p.user.avatar,
+                descripcion: p.user.description,
+                source: 'mock'
+            });
         }
     });
     
-    if (CURRENT_USER && CURRENT_USER.id && !localUsersMap.has(CURRENT_USER.id.toString())) {
-        localUsersMap.set(CURRENT_USER.id.toString(), { id: CURRENT_USER.id, nombre: CURRENT_USER.name, avatar: CURRENT_USER.avatar });
+    // 3. Agregar usuario actual si no está
+    if (CURRENT_USER && CURRENT_USER.id && !userMap.has(CURRENT_USER.id.toString())) {
+        userMap.set(CURRENT_USER.id.toString(), {
+            id: CURRENT_USER.id,
+            nombre: CURRENT_USER.name,
+            fotoPerfil: CURRENT_USER.avatar,
+            descripcion: CURRENT_USER.description,
+            source: 'current'
+        });
     }
     
-    allUsers = Array.from(localUsersMap.values());
+    // Filtrar usuarios (sin mostrar al usuario actual)
+    const filteredUsers = Array.from(userMap.values())
+        .filter(u => u.id.toString() !== CURRENT_USER.id.toString());
     
-    // Si sigue vacío, poner unos por defecto para que la vista no esté vacía
-    if (allUsers.length === 0) {
-        allUsers = [
-            { id: 'u1', nombre: 'John Doe', avatar: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-1.2.1&auto=format&fit=crop&w=300&q=80' },
-            { id: 'u2', nombre: 'Ana Smith', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?ixlib=rb-1.2.1&auto=format&fit=crop&w=300&q=80' }
-        ];
+    if (filteredUsers.length === 0) {
+        personasContainer.innerHTML = '<p class="text-secondary" style="text-align: center; padding: 20px; grid-column: 1 / -1;">No hay otros usuarios todavía.</p>';
+        return;
     }
 
-    personasContainer.innerHTML = allUsers.filter(u => u.id.toString() !== CURRENT_USER.id.toString()).map(persona => {
-      // Intentar obtener el avatar, si no, uno por defecto basado en su nombre
-      let avatarUrl = persona.fotoPerfil || persona.avatar;
+    personasContainer.innerHTML = filteredUsers.map(persona => {
+      // Usar fotoPerfil del backend con fallback a dicebear
+      let avatarUrl = persona.fotoPerfil;
       
-      if (!avatarUrl) {
-         let storyFound = ALL_STORIES.find(s => s.userId.toString() === persona.id.toString());
-         if(storyFound) avatarUrl = storyFound.avatar;
-      }
-      if (!avatarUrl) {
-         let postFound = MOCK_POSTS.find(p => p.user.id.toString() === persona.id.toString());
-         if(postFound) avatarUrl = postFound.user.avatar;
-      }
-      
-      if (!avatarUrl || avatarUrl === 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80') {
-         // Fallback a una imagen genérica pero distintiva por usuario
-         avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${persona.nombre || persona.id}`;
+      if (!avatarUrl || avatarUrl.includes('unsplash.com')) {
+         avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(persona.nombre || persona.id)}`;
       }
       
       return `
-        <div class="zona-card persona-card" onclick="window.openProfile('${persona.id}')" style="cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; background-color:var(--surface-color-light); padding:20px;">
-          <img src="${avatarUrl}" alt="${persona.nombre}" style="width:80px; height:80px; border-radius:50%; object-fit:cover; margin-bottom:10px; transition: transform 0.3s ease;">
-          <div style="font-weight:bold; color:var(--text-primary); text-align:center;">${persona.nombre}</div>
+        <div class="zona-card persona-card" onclick="window.openProfile('${persona.id}')" style="cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; background-color:var(--surface-color-light); padding:20px; border-radius: 12px;">
+          <img src="${avatarUrl}" alt="${persona.nombre}" style="width:80px; height:80px; border-radius:50%; object-fit:cover; margin-bottom:10px; transition: transform 0.3s ease;" onerror="this.src='https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(persona.nombre || persona.id)}'">
+          <div style="font-weight:bold; color:var(--text-primary); text-align:center; font-size: 14px; word-break: break-word;">${persona.nombre}</div>
+          ${persona.descripcion ? `<div style="font-size:12px; color:var(--text-secondary); text-align:center; margin-top:4px; max-width: 100%;">${persona.descripcion}</div>` : ''}
         </div>
       `;
     }).join('');
