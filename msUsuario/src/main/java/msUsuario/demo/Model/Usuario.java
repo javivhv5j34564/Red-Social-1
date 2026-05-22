@@ -23,13 +23,7 @@ public class Usuario {
     private String fotoPerfil;
 
     // RELACIÓN: usuarios que sigo
-    @ManyToMany
-    @JoinTable(
-            name = "seguidores",
-            joinColumns = @JoinColumn(name = "usuario_id"),
-            inverseJoinColumns = @JoinColumn(name = "seguido_id")
-    )
-    private Set<Usuario> siguiendo = new HashSet<>();
+   
 
     public Usuario() {}
 
@@ -72,12 +66,5 @@ public class Usuario {
         this.fotoPerfil = fotoPerfil;
     }
 
-    public Set<Usuario> getSiguiendo() {
-        return siguiendo;
-    }
-
-    public void setSiguiendo(Set<Usuario> siguiendo) {
-        this.siguiendo = siguiendo;
-    }
 }
 

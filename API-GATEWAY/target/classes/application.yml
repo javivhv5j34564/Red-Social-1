@@ -1,0 +1,31 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: API-GATEWAY
+
+  cloud:
+    gateway:
+      globalcors:
+        corsConfigurations:
+          '[/**]':
+            allowedOrigins: "*"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+
+      routes:
+        - id: usuarios
+          uri: lb://MS-USUARIO
+          predicates:
+            - Path=/usuarios/**
+
+        - id: contenidos
+          uri: lb://MS-CONTENIDO
+          predicates:
+            - Path=/contenidos/**
+
+        - id: feed
+          uri: lb://MS-FEED
+          predicates:
+            - Path=/feed/**
