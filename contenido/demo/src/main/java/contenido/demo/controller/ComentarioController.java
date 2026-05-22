@@ -3,10 +3,12 @@ package contenido.demo.controller;
 import contenido.demo.model.Comentario;
 import contenido.demo.service.ComentarioService;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.CrossOrigin;
 
 import java.util.List;
 
 @RestController
+@CrossOrigin(origins = "*")
 @RequestMapping("/api/comentarios")
 public class ComentarioController {
 

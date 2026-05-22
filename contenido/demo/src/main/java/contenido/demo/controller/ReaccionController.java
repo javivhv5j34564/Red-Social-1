@@ -4,10 +4,12 @@ import contenido.demo.dto.ReaccionDTO;
 import contenido.demo.model.Reaccion;
 import contenido.demo.service.ReaccionService;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.CrossOrigin;
 
 import java.util.List;
 
 @RestController
+@CrossOrigin(origins = "*")
 @RequestMapping("/api/reacciones")
 public class ReaccionController {
 
